@@ -1,7 +1,7 @@
 //
 // File: wl.h
-// 
-//  Description: This file contains the data structure for word locator. 
+//
+//  Description: This file contains the data structure for word locator.
 //  Student Name: Karan Talreja
 //  UW Campus ID: 9075678186
 //  enamil: talreja2@wisc.edu
@@ -31,7 +31,8 @@ char output[1000] = {0};
     perror("Error in writing to STDOUT\n");
 
 /**
- * @brief Function to create a deliminator string to be used for tokenizing input file via strtok_r.
+ * @brief Function to create a deliminator string to be used for tokenizing
+          input file via strtok_r.
  * @return Nothing
  */
 void createDelim() {
@@ -45,7 +46,8 @@ void createDelim() {
 }
 
 /**
- * @brief Function to check whether the input command argument contains correct characters.
+ * @brief Function to check whether the input command argument contains
+          correct characters.
  * @retval true   If no character is out of the range of valid characters
  * @retval false  If any character is out of the range of valid characters
  */
@@ -62,18 +64,27 @@ bool checkCorrectChars(const char* word) {
   return true;
 }
 
+///@brief Class to implement vector type functionality. 
 class myVector {
   public:
-    int* arr;
-    size_t capacity;
-    size_t m_size;
+    int* arr;         ///< Member variable to store indices in array
+    size_t capacity;  ///< Member variable to store alloced memory to data
+    size_t m_size;    ///< Member variable to store actual data in structure
 
+    ///@brief Default constructor which sets all member pointers to NULL
     myVector():arr(NULL),capacity(0),m_size(0){}
     
+    ///@brief Member function to return size of the data structure
     size_t size() {
       return m_size;
     }
     
+    /**
+     * @brief Member function to add an integer at the back of the data
+     structure
+     * @param idx Input index which is to be added.
+     * @return Nothing
+     */
     void push_back (int idx) {
       if (m_size + 1 > capacity) {
         if (capacity == 0) {
@@ -90,10 +101,16 @@ class myVector {
       }
     }
 
+    /**
+     * @brief Operator overload to provide array like acess to calling routine
+     * @param index Index of the data which is to be accessed.
+     * @return Data at the input index.
+     */
     int operator[] (int index) {
       return arr[index];
     }
-
+    
+    ///@brief Destructor for memory deallocation.
     ~myVector() {
       if (NULL != arr) free(arr);
     }
@@ -104,10 +121,10 @@ class myVector {
  */
 class node {
   public:
-    node* left;               ///< Member Pointer to left subtree of this node.
-    node* right;              ///< Member Pointer to right subtree of this node.
-    char* word;               ///< Member for Word stored in this node.
-    myVector* index;          ///< Indices of this word in the input document
+    node* left;       ///< Member Pointer to left subtree of this node.
+    node* right;      ///< Member Pointer to right subtree of this node.
+    char* word;       ///< Member for Word stored in this node.
+    myVector* index;  ///< Indices of this word in the input document
 
     ///@brief Default constructor which sets all member pointers to NULL
     node():left(NULL), right(NULL), word(NULL), index(NULL) {}
@@ -116,7 +133,8 @@ class node {
      * @brief One argument constructor with input argument to set word.
      * @param word  Input word to be stored in this node.
      */
-    node(char* word):left(NULL), right(NULL), word(word), index(new myVector()) {}
+    node(char* word):left(NULL), right(NULL), word(word), index(new \
+    myVector()) {}
     
     ///@brief Destructor for memory deallocation.
     ~node() {
@@ -152,14 +170,15 @@ node* insert(node* root, const char* word, int index) {
 
 /**
  * @brief Function to lookup a word from the binary search tree.
- * @param	root	The root of the binary search tree in which the node is to be looked up.
+ * @param	root	The root of the binary search tree in which the node is to be 
+ * looked up.
  * @param word  The word which is to be looked for
- * @details The function returns if the input is NULL. If not it checks if the input word
- *          is equal to, less than or greater than the current node's word. If it's equal
- *          current node is returned. Otherwise the word is lookedup into left subtree or
- *          right sub tree.
- * @return The node which contains the information for the query word. If it doesn't exist
- *         NULL is returned.
+ * @details The function returns if the input is NULL. If not it checks if the 
+ * input word is equal to, less than or greater than the current node's word. 
+ * If it's equal current node is returned. Otherwise the word is lookedup into
+ * left subtree or right sub tree.
+ * @return The node which contains the information for the query word. If it 
+ * doesn't exist NULL is returned.
  */
 node* lookup(node* root, const char* word) {
   if (root == NULL) return NULL;
@@ -173,7 +192,8 @@ node* lookup(node* root, const char* word) {
 
 /**
  * @brief Function to do a inorder traversal on the binary search tree.
- * @param	root	The root of the binary search tree on which in order traversal is to be done.
+ * @param	root	The root of the binary search tree on which in order traversal 
+ is to be done.
  * @return Nothing.
  */
 void inorder(node* root) {

@@ -67,7 +67,8 @@ int main(int argc, char** argv)
         int idx = 1;
         while (NULL != fgets(line, sizeof(line), currLoadFile)) {
           currCommand = line;
-          while (NULL != (token = strtok_r(currCommand, delim.c_str(), &context))) {
+          while (NULL != (token = strtok_r(currCommand, delim.c_str(),\
+            &context))) {
             currCommand = NULL;
             std::string temp(token);
             root = insert(root, temp.c_str(), idx);

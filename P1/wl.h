@@ -12,6 +12,9 @@
 #include <string>
 #include <vector>
 
+class listNode;
+class list;
+
 ///@brief Type to specify the type of input command.
 typedef enum _command {
   LOAD_e,     ///< "load" command
@@ -44,6 +47,11 @@ void createDelim() {
   }
 }
 
+/**
+ * @brief Function to check whether the input command argument contains correct characters.
+ * @retval true   If no character is out of the range of valid characters
+ * @retval false  If any character is out of the range of valid characters
+ */
 bool checkCorrectChars(const char* word) {
   for (; *word != '\0'; word++) {
     int i = *word;
@@ -60,21 +68,87 @@ bool checkCorrectChars(const char* word) {
 /**
  * @brief Class to represent the node of a binary search tree.
  */
+class listNode {
+  public:
+    listNode* next;   ///< Member pointer to hold the address of next node in the list.
+    int index;        ///< Data to be stored in the list's node
+
+    ///@brief Default constructor which sets all member pointers to NULL
+    listNode() : next(NULL), index(-1) {}
+    
+    /**
+     * @brief One argument constructor with input argument to set index.
+     * @param i  Input word's index to be stored in this node.
+     */
+    listNode(int i) : next(NULL), index(i) {}
+
+};
+
+/**
+ * @brief Class to represent the node of a binary search tree.
+ */
+class list {
+  private:
+    size_t m_size;
+    listNode* head;
+    listNode* curr;
+
+  public:
+    
+    ///@brief Default constructor which sets all member pointers to NULL
+    list(): m_size(0),head(NULL), curr(NULL) {}
+    
+    /**
+     * @brief One argument constructor with input argument to set word.
+     * @param word  Input word to be stored in this node.
+     */
+    list(listNode* h) : m_size(1),head(h), curr(h) {}
+
+    void push_back(int idx) {
+      if (head == NULL) {
+        head = new listNode(idx);
+        curr = head;
+        m_size++;
+      } else {
+        curr->next = new listNode(idx);
+        curr = curr->next;
+        m_size++;
+      }
+    }
+
+    size_t size() {
+      return m_size;
+    }
+
+    int operator [] (int index) {
+      if (index == 0) return head->index;
+      listNode* retVal = head;
+      for (int i =0; i < index; i++) {
+        retVal = retVal->next;
+      }
+      return retVal->index;
+    }
+};
+
+/**
+ * @brief Class to represent the node of a binary search tree.
+ */
 class node {
   public:
     node* left;               ///< Member Pointer to left subtree of this node.
     node* right;              ///< Member Pointer to right subtree of this node.
     char* word;               ///< Member for Word stored in this node.
-    std::vector<int> index;   ///< Indices of this word in the input document
+    //std::vector<int> indexs;   ///< Indices of this word in the input document
+    list* index;
 
     ///@brief Default constructor which sets all member pointers to NULL
-    node():left(NULL), right(NULL), word(NULL) {}
+    node():left(NULL), right(NULL), word(NULL), index(NULL) {}
 
     /**
      * @brief One argument constructor with input argument to set word.
      * @param word  Input word to be stored in this node.
      */
-    node(char* word):left(NULL), right(NULL), word(word) {}
+    node(char* word):left(NULL), right(NULL), word(word), index(new list()) {}
     
     ///@brief Destructor for memory deallocation.
     ~node() {
@@ -83,7 +157,7 @@ class node {
       if (NULL != right) delete right;
     }
 } *root;
-	
+
 /**
  * @brief Function to insert a word into binary search tree.
  * @param	word	word from the document which is to be inserted into the tree.
@@ -93,7 +167,7 @@ class node {
 node* insert(node* root, const char* word, int index) {
   if (root == NULL) {
     root = new node(strdup(word));
-    root->index.push_back(index);
+    root->index->push_back(index);
     return root;
   }
   int rc = strcasecmp(word, root->word);
@@ -103,7 +177,7 @@ node* insert(node* root, const char* word, int index) {
   } else if (rc > 0) {
     node* retNode = insert(root->right, word, index);
     if (root->right == NULL) root->right = retNode;
-  } else root->index.push_back(index);
+  } else root->index->push_back(index);
   return root;
 }
 
@@ -133,13 +207,13 @@ node* lookup(node* root, const char* word) {
  * @param	root	The root of the binary search tree on which in order traversal is to be done.
  * @return Nothing.
  */
-void inorder(node* root) {
-  if (root == NULL) return;
-  inorder(root->left);
-  wl_printf("%s ",root->word);
-  for (std::vector<int>::iterator itr = root->index.begin(); itr != root->index.end(); itr++) {
-    wl_printf("%d ",*itr);
-  }
-  wl_printf("\n");
-  inorder(root->right);
-}
+//void inorder(node* root) {
+//  if (root == NULL) return;
+//  inorder(root->left);
+//  wl_printf("%s ",root->word);
+//  for (std::vector<int>::iterator itr = root->index.begin(); itr != root->index.end(); itr++) {
+//    wl_printf("%d ",*itr);
+//  }
+//  wl_printf("\n");
+//  inorder(root->right);
+//}

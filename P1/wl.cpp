@@ -23,7 +23,7 @@ int main(int argc, char** argv)
   createDelim();
   while (1) {
     cmd = ERROR_e;
-    //wl_printf(">");
+    wl_printf(">");
     rc = fgets(command, sizeof(command), fin);
     if (rc == NULL) continue;
 
@@ -92,10 +92,10 @@ int main(int argc, char** argv)
         node* rc = lookup(root, temp.c_str());
         if (rc == NULL) {
           wl_printf("No matching entry\n");
-        } else if (rc->index.size() < (unsigned int)occurence) {
+        } else if (rc->index->size() < (unsigned int)occurence) {
           wl_printf("No matching entry\n");
         } else {
-          wl_printf("%d\n",rc->index[occurence - 1]);
+          wl_printf("%d\n",(*(rc->index))[occurence - 1]);
         }
       }
         break;

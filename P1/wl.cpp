@@ -100,8 +100,10 @@ int main(int argc, char** argv)
       }
         break;
       case NEW_e:
-        delete root;
-        root = NULL;
+        if (NULL != root) {
+          delete root;
+          root = NULL;
+        }
         break;
       case END_e:
         return 0;
@@ -110,6 +112,10 @@ int main(int argc, char** argv)
         wl_printf("ERROR: Invalid command\n");
         continue;
     }
+  }
+  if (NULL != root) {
+    delete root;
+    root = NULL;
   }
   return 0;
 }

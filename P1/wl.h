@@ -12,9 +12,6 @@
 #include <string>
 #include <vector>
 
-class listNode;
-class list;
-
 ///@brief Type to specify the type of input command.
 typedef enum _command {
   LOAD_e,     ///< "load" command
@@ -65,68 +62,40 @@ bool checkCorrectChars(const char* word) {
   return true;
 }
 
-/**
- * @brief Class to represent the node of a binary search tree.
- */
-class listNode {
+class myVector {
   public:
-    listNode* next;   ///< Member pointer to hold the address of next node in the list.
-    int index;        ///< Data to be stored in the list's node
-
-    ///@brief Default constructor which sets all member pointers to NULL
-    listNode() : next(NULL), index(-1) {}
-    
-    /**
-     * @brief One argument constructor with input argument to set index.
-     * @param i  Input word's index to be stored in this node.
-     */
-    listNode(int i) : next(NULL), index(i) {}
-
-};
-
-/**
- * @brief Class to represent the node of a binary search tree.
- */
-class list {
-  private:
+    int* arr;
+    size_t capacity;
     size_t m_size;
-    listNode* head;
-    listNode* curr;
 
-  public:
+    myVector():arr(NULL),capacity(0),m_size(0){}
     
-    ///@brief Default constructor which sets all member pointers to NULL
-    list(): m_size(0),head(NULL), curr(NULL) {}
-    
-    /**
-     * @brief One argument constructor with input argument to set word.
-     * @param word  Input word to be stored in this node.
-     */
-    list(listNode* h) : m_size(1),head(h), curr(h) {}
-
-    void push_back(int idx) {
-      if (head == NULL) {
-        head = new listNode(idx);
-        curr = head;
-        m_size++;
-      } else {
-        curr->next = new listNode(idx);
-        curr = curr->next;
-        m_size++;
-      }
-    }
-
     size_t size() {
       return m_size;
     }
-
-    int operator [] (int index) {
-      if (index == 0) return head->index;
-      listNode* retVal = head;
-      for (int i =0; i < index; i++) {
-        retVal = retVal->next;
+    
+    void push_back (int idx) {
+      if (m_size + 1 > capacity) {
+        if (capacity == 0) {
+          capacity = 2;
+          arr = (int*)malloc(capacity*sizeof(int));
+          arr[m_size++] = idx;
+        } else {
+          capacity *= 2;
+          arr = (int*)realloc(arr, capacity*sizeof(int));
+          arr[m_size++] = idx;
+        }
+      } else {
+        arr[m_size++] = idx;
       }
-      return retVal->index;
+    }
+
+    int operator[] (int index) {
+      return arr[index];
+    }
+
+    ~myVector() {
+      if (NULL != arr) free(arr);
     }
 };
 
@@ -138,8 +107,7 @@ class node {
     node* left;               ///< Member Pointer to left subtree of this node.
     node* right;              ///< Member Pointer to right subtree of this node.
     char* word;               ///< Member for Word stored in this node.
-    //std::vector<int> indexs;   ///< Indices of this word in the input document
-    list* index;
+    myVector* index;          ///< Indices of this word in the input document
 
     ///@brief Default constructor which sets all member pointers to NULL
     node():left(NULL), right(NULL), word(NULL), index(NULL) {}
@@ -148,13 +116,14 @@ class node {
      * @brief One argument constructor with input argument to set word.
      * @param word  Input word to be stored in this node.
      */
-    node(char* word):left(NULL), right(NULL), word(word), index(new list()) {}
+    node(char* word):left(NULL), right(NULL), word(word), index(new myVector()) {}
     
     ///@brief Destructor for memory deallocation.
     ~node() {
       if (NULL != word) free(word);
       if (NULL != left) delete left;
       if (NULL != right) delete right;
+      if (NULL != index)  delete index;
     }
 } *root;
 
@@ -207,13 +176,13 @@ node* lookup(node* root, const char* word) {
  * @param	root	The root of the binary search tree on which in order traversal is to be done.
  * @return Nothing.
  */
-//void inorder(node* root) {
-//  if (root == NULL) return;
-//  inorder(root->left);
-//  wl_printf("%s ",root->word);
-//  for (std::vector<int>::iterator itr = root->index.begin(); itr != root->index.end(); itr++) {
-//    wl_printf("%d ",*itr);
-//  }
-//  wl_printf("\n");
-//  inorder(root->right);
-//}
+void inorder(node* root) {
+  if (root == NULL) return;
+  inorder(root->left);
+  wl_printf("%s ",root->word);
+  for (unsigned int i = 0; i < root->index->m_size; i++) {
+    wl_printf("%d ",(*root->index)[i]);
+  }
+  wl_printf("\n");
+  inorder(root->right);
+}

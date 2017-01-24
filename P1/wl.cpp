@@ -106,16 +106,16 @@ int main(int argc, char** argv)
         }
         break;
       case END_e:
+        if (NULL != root) {
+          delete root;
+          root = NULL;
+        }
         return 0;
         break;
       default:
         wl_printf("ERROR: Invalid command\n");
         continue;
     }
-  }
-  if (NULL != root) {
-    delete root;
-    root = NULL;
   }
   return 0;
 }

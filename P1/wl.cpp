@@ -79,7 +79,12 @@ int main(int argc, char** argv) {
       }
         break;
       case LOCATE_e: {
-        int occurence = atoi(argvs[2]);
+        char* err = NULL;
+        int occurence = strtol(argvs[2], &err, 10);
+        if (*err != '\0') {
+          wl_printf("ERROR: Invalid command\n");
+          continue;
+        }
         if (occurence < 0) {
           wl_printf("ERROR: Invalid command\n");
           continue;

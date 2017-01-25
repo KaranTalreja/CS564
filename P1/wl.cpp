@@ -1,10 +1,10 @@
 //
 // File: wl.cpp
-// 
-//  Description: This file contains the implementation of word locator. 
+//
+//  Description: This file contains the implementation of word locator.
 //  Student Name: Karan Talreja
 //  UW Campus ID: 9075678186
-//  enamil: talreja2@wisc.edu 
+//  enamil: talreja2@wisc.edu
 
 #include "wl.h"
 
@@ -13,8 +13,7 @@
  * @param argc Input number of arguments
  * @param argv Input arguments
  */
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
   char command[514];
   char* currCommand = command, *token = command;
   FILE* fin = stdin, *currLoadFile = NULL;
@@ -39,7 +38,7 @@ int main(int argc, char** argv)
       argvs[i++] = token;
       if (i > 3) break;
     }
-    
+
     if (i == 1) {
       if (0 == strcasecmp(argvs[0], "new")) cmd = NEW_e;
       else if (0 == strcasecmp(argvs[0], "end")) cmd = END_e;
@@ -51,7 +50,7 @@ int main(int argc, char** argv)
         wl_printf("ERROR: Invalid command\n");
         continue;
     }
-    
+
     switch (cmd) {
       case LOAD_e: {
         currLoadFile = fopen(argvs[1], "r");
@@ -67,7 +66,7 @@ int main(int argc, char** argv)
         int idx = 1;
         while (NULL != fgets(line, sizeof(line), currLoadFile)) {
           currCommand = line;
-          while (NULL != (token = strtok_r(currCommand, delim.c_str(),\
+          while (NULL != (token = strtok_r(currCommand, delim.c_str(), \
             &context))) {
             currCommand = NULL;
             std::string temp(token);
@@ -76,7 +75,7 @@ int main(int argc, char** argv)
           }
         }
         fclose(currLoadFile);
-        //inorder(root);
+        // inorder(root);
       }
         break;
       case LOCATE_e: {
@@ -96,7 +95,7 @@ int main(int argc, char** argv)
         } else if (rc->index->size() < (unsigned int)occurence) {
           wl_printf("No matching entry\n");
         } else {
-          wl_printf("%d\n",(*(rc->index))[occurence - 1]);
+          wl_printf("%d\n", (*(rc->index))[occurence - 1]);
         }
       }
         break;

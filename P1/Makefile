@@ -2,7 +2,7 @@
 # Requires that the object definitions be in wl.h and wl.cpp
 
 CXX = g++
-CXXFLAGS =  -g -Wall -gdwarf-2
+CXXFLAGS = -O2 -g -Wall 
 
 # During debugging you may want to used the compiler flags listed below
 #CXXFLAGS =      -g -Wall

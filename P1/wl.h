@@ -1,3 +1,5 @@
+#ifndef P1_WL_H_
+#define P1_WL_H_
 //
 // File: wl.h
 //
@@ -10,9 +12,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <string>
-#include <vector>
 
-///@brief Type to specify the type of input command.
+/// @brief Type to specify the type of input command.
 typedef enum _command {
   LOAD_e,     ///< "load" command
   LOCATE_e,   ///< "locate" command
@@ -24,7 +25,7 @@ typedef enum _command {
 std::string delim;
 char output[1000] = {0};
 
-///@brief Helper macro to print to stdout using write system call.
+/// @brief Helper macro to print to stdout using write system call.
 #define wl_printf(format, ...) \
   sprintf(output, format, ##__VA_ARGS__); \
   if (write(STDOUT_FILENO, output, strlen(output)) == -1) \
@@ -36,11 +37,11 @@ char output[1000] = {0};
  * @return Nothing
  */
 void createDelim() {
-  for(int i = 1; i < 256; i++) {
-    if (i >= 48 && i <= 57) continue;   //[0-9] cannot end word
-    if (i >= 65 && i <= 90) continue;   //[A-Z] cannot end word
-    if (i >= 97 && i <= 122) continue;  //[a-z] cannot end word
-    if (i == 39) continue;              //'(Apostrophe) cannot end word
+  for (int i = 1; i < 256; i++) {
+    if (i >= 48 && i <= 57) continue;   // [0-9] cannot end word
+    if (i >= 65 && i <= 90) continue;   // [A-Z] cannot end word
+    if (i >= 97 && i <= 122) continue;  // [a-z] cannot end word
+    if (i == 39) continue;              // '(Apostrophe) cannot end word
     delim += (char)i;
   }
 }
@@ -54,38 +55,39 @@ void createDelim() {
 bool checkCorrectChars(const char* word) {
   for (; *word != '\0'; word++) {
     int i = *word;
-    if (i >= 48 && i <= 57) continue;         //[0-9] valid 
-    else if (i >= 65 && i <= 90) continue;    //[A-Z] valid 
-    else if (i >= 97 && i <= 122) continue;   //[a-z] valid 
-    else if (i == 39) continue;               //'(Apostrophe) cannot end word
+    if (i >= 48 && i <= 57) continue;         // [0-9] valid
+    else if (i >= 65 && i <= 90) continue;    // [A-Z] valid
+    else if (i >= 97 && i <= 122) continue;   // [a-z] valid
+    else if (i == 39) continue;               // '(Apostrophe) cannot end word
     else if (i == 0) continue;
-    else return false;
+    else
+      return false;
   }
   return true;
 }
 
-///@brief Class to implement vector type functionality. 
+/// @brief Class to implement vector type functionality.
 class myVector {
-  public:
+ public:
     int* arr;         ///< Member variable to store indices in array
     size_t capacity;  ///< Member variable to store alloced memory to data
     size_t m_size;    ///< Member variable to store actual data in structure
 
-    ///@brief Default constructor which sets all member pointers to NULL
-    myVector():arr(NULL),capacity(0),m_size(0){}
-    
-    ///@brief Member function to return size of the data structure
+    /// @brief Default constructor which sets all member pointers to NULL
+    myVector():arr(NULL), capacity(0), m_size(0) {}
+
+    /// @brief Member function to return size of the data structure
     size_t size() {
       return m_size;
     }
-    
+
     /**
      * @brief Member function to add an integer at the back of the data
      structure
      * @param idx Input index which is to be added.
      * @return Nothing
      */
-    void push_back (int idx) {
+    void push_back(int idx) {
       if (m_size + 1 > capacity) {
         if (capacity == 0) {
           capacity = 2;
@@ -109,8 +111,8 @@ class myVector {
     int operator[] (int index) {
       return arr[index];
     }
-    
-    ///@brief Destructor for memory deallocation.
+
+    /// @brief Destructor for memory deallocation.
     ~myVector() {
       if (NULL != arr) free(arr);
     }
@@ -120,13 +122,13 @@ class myVector {
  * @brief Class to represent the node of a binary search tree.
  */
 class node {
-  public:
+ public:
     node* left;       ///< Member Pointer to left subtree of this node.
     node* right;      ///< Member Pointer to right subtree of this node.
     char* word;       ///< Member for Word stored in this node.
     myVector* index;  ///< Indices of this word in the input document
 
-    ///@brief Default constructor which sets all member pointers to NULL
+    /// @brief Default constructor which sets all member pointers to NULL
     node():left(NULL), right(NULL), word(NULL), index(NULL) {}
 
     /**
@@ -135,8 +137,8 @@ class node {
      */
     node(char* word):left(NULL), right(NULL), word(word), index(new \
     myVector()) {}
-    
-    ///@brief Destructor for memory deallocation.
+
+    /// @brief Destructor for memory deallocation.
     ~node() {
       if (NULL != word) free(word);
       if (NULL != left) delete left;
@@ -164,7 +166,9 @@ node* insert(node* root, const char* word, int index) {
   } else if (rc > 0) {
     node* retNode = insert(root->right, word, index);
     if (root->right == NULL) root->right = retNode;
-  } else root->index->push_back(index);
+  } else {
+    root->index->push_back(index);
+  }
   return root;
 }
 
@@ -186,7 +190,8 @@ node* lookup(node* root, const char* word) {
   int rc = strcasecmp(word, root->word);
   if (rc < 0) retNode = lookup(root->left, word);
   else if (rc > 0) retNode = lookup(root->right, word);
-  else retNode = root;
+  else
+    retNode = root;
   return retNode;
 }
 
@@ -199,10 +204,11 @@ node* lookup(node* root, const char* word) {
 void inorder(node* root) {
   if (root == NULL) return;
   inorder(root->left);
-  wl_printf("%s ",root->word);
+  wl_printf("%s ", root->word);
   for (unsigned int i = 0; i < root->index->m_size; i++) {
-    wl_printf("%d ",(*root->index)[i]);
+    wl_printf("%d ", (*root->index)[i]);
   }
   wl_printf("\n");
   inorder(root->right);
 }
+#endif  // P1_WL_H_

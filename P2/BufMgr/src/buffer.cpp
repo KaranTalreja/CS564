@@ -36,6 +36,14 @@ BufMgr::BufMgr(std::uint32_t bufs)
 
 
 BufMgr::~BufMgr() {
+  for (unsigned int i = 0; i < numBufs; i++) {
+    if (bufDescTable[i].dirty == true) {
+      bufDescTable[i].file->writePage(bufPool[i]);
+    }
+  }
+  delete[] bufDescTable;
+  delete[] bufPool;
+  delete hashTable;
 }
 
 void BufMgr::advanceClock()
@@ -45,10 +53,11 @@ void BufMgr::advanceClock()
 
 void BufMgr::allocBuf(FrameId & frame)
 {
-  unsigned int cnt = 0;
+  int cnt = 0, i = -1;
   while(1) {
+    i++;
     advanceClock();
-    if (cnt == numBufs) throw BufferExceededException();
+    if ((cnt == i) && (i == (int)numBufs)) throw BufferExceededException();
     if (bufDescTable[clockHand].pinCnt == 0 && bufDescTable[clockHand].refbit == false) {
       frame = clockHand;
       break;
@@ -124,7 +133,14 @@ void BufMgr::allocPage(File* file, PageId &pageNo, Page*& page)
 
 void BufMgr::disposePage(File* file, const PageId PageNo)
 {
-    
+  FrameId frameNo;
+  bool rc = hashTable->lookup(file, PageNo, frameNo);
+  if (true == rc) {
+    hashTable->remove(bufDescTable[frameNo].file, bufDescTable[frameNo].pageNo);
+    bufDescTable[frameNo].Clear();
+  }
+  file->deletePage(PageNo);
+  return;
 }
 
 void BufMgr::printSelf(void) 

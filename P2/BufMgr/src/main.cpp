@@ -147,6 +147,9 @@ void testBufMgr()
 	test5();
 	test6();
 
+    // delete the bufMgr before deleting files
+	delete bufMgr;
+
 	//Close files before deleting them
 	file1.~File();
 	file2.~File();
@@ -160,8 +163,6 @@ void testBufMgr()
 	File::remove(filename3);
 	File::remove(filename4);
 	File::remove(filename5);
-
-	delete bufMgr;
 
 	std::cout << "\n" << "Passed all tests." << "\n";
 }

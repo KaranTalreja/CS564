@@ -58,6 +58,10 @@ void BufMgr::allocBuf(FrameId & frame)
     i++;
     advanceClock();
     if ((cnt == i) && (i == (int)numBufs)) throw BufferExceededException();
+    if (i > 3*(int)numBufs) throw BufferExceededException(); 
+    /* Avoiding infinite loop above,
+      since a frame should be found in at most 2 traversals. If cnt is not equal to i
+      even by one, then atleast one unpinned page is there.*/
     if (bufDescTable[clockHand].pinCnt == 0 && bufDescTable[clockHand].refbit == false) {
       frame = clockHand;
       break;
@@ -98,7 +102,7 @@ void BufMgr::unPinPage(File* file, const PageId pageNo, const bool dirty)
   if (rc == false) return;
   if (bufDescTable[frameNo].pinCnt == 0) throw PageNotPinnedException(file->filename(), pageNo, frameNo);
   bufDescTable[frameNo].pinCnt--;
-  if (dirty == true) bufDescTable[frameNo].dirty = true;
+  if (dirty == true) bufDescTable[frameNo].dirty = dirty;
 }
 
 void BufMgr::flushFile(const File* file) 

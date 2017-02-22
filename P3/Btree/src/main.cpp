@@ -45,14 +45,6 @@ const std::string relationName = "relA";
 const int	relationSize = 5000;
 std::string intIndexName, doubleIndexName, stringIndexName;
 
-// This is the structure for tuples in the base relation
-
-typedef struct tuple {
-	int i;
-	double d;
-	char s[64];
-} RECORD;
-
 PageFile* file1;
 RecordId rid;
 RECORD record1;

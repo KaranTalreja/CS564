@@ -475,4 +475,12 @@ class BTreeIndex {
 	
 };
 
+// This is the structure for tuples in the base relation
+
+typedef struct tuple {
+	int i;
+	double d;
+	char s[64];
+} RECORD;
+
 }

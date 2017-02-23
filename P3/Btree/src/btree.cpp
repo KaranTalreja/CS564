@@ -16,9 +16,9 @@
 #include "exceptions/file_not_found_exception.h"
 #include "exceptions/end_of_file_exception.h"
 
-#include <iostream>
+#include <algorithm>
 
-//#define DEBUG
+#define DEBUG
 
 namespace badgerdb
 {
@@ -44,25 +44,33 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
   if (true == badgerdb::BlobFile::exists(indexName)) {
     badgerdb::BlobFile indexFile(badgerdb::BlobFile::open(indexName));
     this->file = &indexFile;
-    Page headerPage = this->file->readPage(this->file->getFirstPageNo());
-    IndexMetaInfo* metaData = reinterpret_cast<IndexMetaInfo*>(&headerPage);
-    std::cout << "Read relation" << metaData->relationName << std::endl;
+    this->headerPageNum = this->file->getFirstPageNo();
+    Page *headerPage;
+    this->bufMgr->readPage(this->file, this->headerPageNum, headerPage);
+    IndexMetaInfo* metaData = reinterpret_cast<IndexMetaInfo*>(headerPage);
+    this->rootPageNum = metaData->rootPageNo;
   } else {
     badgerdb::BlobFile indexFile(badgerdb::BlobFile::create(indexName));
     this->file = &indexFile;
 
-    Page headerPage = this->file->allocatePage(this->headerPageNum);
-    Page rootPage = this->file->allocatePage(this->rootPageNum);
+    Page *headerPage, *rootPage;
 
-    void* start = &headerPage;
+    this->bufMgr->allocPage(this->file, this->headerPageNum, headerPage);
+    this->bufMgr->allocPage(this->file, this->rootPageNum, rootPage);
     IndexMetaInfo metaData;
     metaData.attrByteOffset = this->attrByteOffset;
     metaData.attrType = this->attributeType;
     strncpy(metaData.relationName, relationName.c_str(), sizeof(metaData.relationName)-1);
     metaData.relationName[19] = '\0';
     metaData.rootPageNo = this->rootPageNum;
-    memcpy(start, &metaData, sizeof(IndexMetaInfo));
-    this->file->writePage(this->headerPageNum, headerPage);
+    memcpy(headerPage, &metaData, sizeof(IndexMetaInfo));
+    this->bufMgr->unPinPage(this->file, this->headerPageNum, true);
+
+    NonLeafNodeInt rootData;
+    memset(&rootData, 0, sizeof(NonLeafNodeInt));
+    rootData.level = 1;
+    memcpy(rootPage, &rootData, sizeof(NonLeafNodeInt));
+    this->bufMgr->unPinPage(this->file, this->rootPageNum, true);
 
     {
       FileScan fscan(relationName, bufMgr);
@@ -92,7 +100,7 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
 
 BTreeIndex::~BTreeIndex()
 {
-//  this->file->close();
+  this->bufMgr->flushFile(this->file);
 }
 
 // -----------------------------------------------------------------------------
@@ -101,7 +109,80 @@ BTreeIndex::~BTreeIndex()
 
 const void BTreeIndex::insertEntry(const void *key, const RecordId rid) 
 {
+  Page* rootPage;
+  this->bufMgr->readPage(this->file, this->rootPageNum, rootPage);
+  NonLeafNodeInt* rootData = reinterpret_cast<NonLeafNodeInt*>(rootPage);
+  int keyValue = *reinterpret_cast<int*>(const_cast<void*>(key));
+  if (rootData->pageNoArray[0] == Page::INVALID_NUMBER) {
+    Page* lessKey, *greaterKey;
+    this->bufMgr->allocPage(this->file, rootData->pageNoArray[0], lessKey);
+    this->bufMgr->allocPage(this->file, rootData->pageNoArray[1], greaterKey);
+    
+    LeafNodeInt dataPageLeft, dataPageRight;
+    memset(&dataPageLeft, 0, sizeof(LeafNodeInt));
+    memset(&dataPageRight, 0, sizeof(LeafNodeInt));
+    
+    dataPageLeft.rightSibPageNo = rootData->pageNoArray[1];
+    
+    memcpy(lessKey, &dataPageLeft, sizeof(LeafNodeInt));
+    this->bufMgr->unPinPage(this->file, rootData->pageNoArray[0], true);
 
+    dataPageRight.keyArray[0] = keyValue;
+    dataPageRight.ridArray[0] = rid;
+    memcpy(greaterKey, &dataPageRight, sizeof(LeafNodeInt));
+    this->bufMgr->unPinPage(this->file, rootData->pageNoArray[1], true);
+
+    rootData->level = 2;
+    this->bufMgr->unPinPage(this->file, this->rootPageNum, true);
+  } else {
+    int i = 0, depth = 1;
+    NonLeafNodeInt* currPage = rootData;
+    PageId lastPage = this->rootPageNum;
+    Page* tempPage;
+    while (depth < rootData->level) {
+      if (keyValue < currPage->keyArray[0]) {
+        i = 0;
+      } else {
+        for (i = 1; i < INTARRAYNONLEAFSIZE; i++) {
+          if (currPage->pageNoArray[i] == Page::INVALID_NUMBER) {
+            break;
+          }
+          if (currPage->keyArray[i] < keyValue) {
+            if (currPage->pageNoArray[i+1] != Page::INVALID_NUMBER) //TODO _split || i+1 == INTARRAYNONLEAFSIZE)
+              continue; // means if this was the last page in the node, we need to add to this page only otherwise continue
+          }
+          break;
+        }
+      }
+      // TODO _karant : if i == INTARRAYNONLEAFSIZE then need to split page
+      this->bufMgr->unPinPage(this->file, lastPage, false);
+      tempPage = reinterpret_cast<Page*>(currPage);
+      this->bufMgr->readPage(this->file, currPage->pageNoArray[i], tempPage);
+      lastPage = currPage->pageNoArray[i];
+      currPage = reinterpret_cast<NonLeafNodeInt*>(tempPage);
+      depth++;
+    }
+    PageId dataPageNum = lastPage;
+    i = 0;
+    int insertAt = -1;
+    LeafNodeInt* dataPage = reinterpret_cast<LeafNodeInt*>(currPage);
+    for (i = 0; i < INTARRAYLEAFSIZE; i++) {
+      if (dataPage->ridArray[i].page_number == Page::INVALID_NUMBER) {
+        insertAt = i;
+        break;
+      }
+      if (keyValue > dataPage->keyArray[i]) continue;
+      if (insertAt == -1) insertAt = i;
+    }
+    // TODO _karant : if i == INTARRAYLEAFSIZE then need to split page
+    for (int j = i; j > insertAt; j--) {
+      dataPage->ridArray[j] = dataPage->ridArray[j-1];
+      dataPage->keyArray[j] = dataPage->keyArray[j-1];
+    }
+    dataPage->ridArray[insertAt] = rid;
+    dataPage->keyArray[insertAt] = keyValue;
+    this->bufMgr->unPinPage(this->file, dataPageNum, true);
+  }
 }
 
 // -----------------------------------------------------------------------------

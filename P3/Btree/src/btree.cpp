@@ -104,6 +104,7 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
 BTreeIndex::~BTreeIndex()
 {
   this->bufMgr->flushFile(this->file);
+  delete this->file;
 }
 
 // -----------------------------------------------------------------------------
@@ -202,6 +203,17 @@ const void BTreeIndex::startScan(const void* lowValParm,
     this->bufMgr->readPage(this->file, this->currentPageNum, this->currentPageData);
     this->nextEntry = insertAt;
     LeafNodeInt* dataPage = reinterpret_cast<LeafNodeInt*>(this->currentPageData);
+    if (dataPage->ridArray[this->nextEntry].page_number == Page::INVALID_NUMBER) {
+      if (Page::INVALID_NUMBER != dataPage->rightSibPageNo) {
+        this->nextEntry = 0;
+        this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
+        this->currentPageNum = dataPage->rightSibPageNo;
+        this->bufMgr->readPage(this->file, this->currentPageNum, this->currentPageData);
+      } else {
+        this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
+        throw NoSuchKeyFoundException();
+      }
+    }
     if (this->lowOp == GT) {
       if (dataPage->keyArray[this->nextEntry] == lowValInt) {
         if (this->nextEntry + 1 == INTARRAYLEAFSIZE) {
@@ -212,8 +224,14 @@ const void BTreeIndex::startScan(const void* lowValParm,
         } else this->nextEntry++;
       }
     }
-    if (dataPage->keyArray[this->nextEntry] > highValInt) throw NoSuchKeyFoundException();
-    else if (this->highOp == LT && dataPage->keyArray[this->nextEntry] == highValInt) throw NoSuchKeyFoundException();
+    if (dataPage->keyArray[this->nextEntry] > highValInt) {
+      this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
+      throw NoSuchKeyFoundException();
+    }
+    else if (this->highOp == LT && dataPage->keyArray[this->nextEntry] == highValInt){ 
+      this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
+      throw NoSuchKeyFoundException();
+    }
   }
 }
 
@@ -224,9 +242,19 @@ const void BTreeIndex::startScan(const void* lowValParm,
 const void BTreeIndex::scanNext(RecordId& outRid) 
 {
   LeafNodeInt* dataPage = reinterpret_cast<LeafNodeInt*>(this->currentPageData);
-  if (this->highOp == LT && dataPage->keyArray[this->nextEntry] >= this->highValInt) throw IndexScanCompletedException();
-  if (this->highOp == LTE && dataPage->keyArray[this->nextEntry] > this->highValInt) throw IndexScanCompletedException();
+  if (this->highOp == LT && dataPage->keyArray[this->nextEntry] >= this->highValInt) {
+    this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
+    throw IndexScanCompletedException();
+  }
+  if (this->highOp == LTE && dataPage->keyArray[this->nextEntry] > this->highValInt) {
+    this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
+    throw IndexScanCompletedException();
+  }
   outRid = dataPage->ridArray[this->nextEntry];
+  #ifdef DEBUG
+  assert(outRid.page_number != Page::INVALID_NUMBER);
+  assert(outRid.slot_number != 0);
+  #endif
   if (this->nextEntry + 1 == INTARRAYLEAFSIZE) {
     this->nextEntry = 0;
     this->bufMgr->unPinPage(this->file, this->currentPageNum, false);

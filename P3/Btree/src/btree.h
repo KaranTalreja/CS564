@@ -474,7 +474,7 @@ class BTreeIndex {
 	const void endScan();
 private:
 
-  void getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, PageId& pageNo, int& insertAt, int& endOfRecordsOffset);
+  void getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, PageId& pageNo, int& insertAt, int& endOfRecordsOffset, PageId& lastPageNo, bool insert = true);
 };
 
 // This is the structure for tuples in the base relation

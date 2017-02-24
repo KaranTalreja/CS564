@@ -13,7 +13,7 @@
 #include "exceptions/page_pinned_exception.h"
 #include "exceptions/bad_buffer_exception.h"
 #include "exceptions/hash_not_found_exception.h"
-
+//#define DEBUG 
 namespace badgerdb { 
 
 //----------------------------------------
@@ -120,7 +120,9 @@ void BufMgr::allocBuf(FrameId & frame)
 void BufMgr::readPage(File* file, const PageId pageNo, Page*& page)
 {
   // check to see if it is already in the buffer pool
-  // std::cout << "readPage called on file.page " << file << "." << pageNo << endl;
+  #ifdef DEBUG
+  std::cout << "readPage called on page " << pageNo << "\n";
+  #endif
   FrameId frameNo = 0;
 	try
 	{
@@ -166,6 +168,9 @@ void BufMgr::unPinPage(File* file, const PageId pageNo,
   	throw PageNotPinnedException(file->filename(), pageNo, frameNo);
   }
   else bufDescTable[frameNo].pinCnt--;
+#ifdef DEBUG
+  std::cout << "unpin called on page " << pageNo << "\n";
+#endif
 }
 
 void BufMgr::flushFile(const File* file) 

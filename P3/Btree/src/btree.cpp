@@ -46,16 +46,15 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
   this->attributeType = attrType;
 
   if (true == badgerdb::BlobFile::exists(indexName)) {
-    badgerdb::BlobFile indexFile(badgerdb::BlobFile::open(indexName));
-    this->file = &indexFile;
+    this->file = new BlobFile(indexName, false);
     this->headerPageNum = this->file->getFirstPageNo();
     Page *headerPage;
     this->bufMgr->readPage(this->file, this->headerPageNum, headerPage);
     IndexMetaInfo* metaData = reinterpret_cast<IndexMetaInfo*>(headerPage);
     this->rootPageNum = metaData->rootPageNo;
+    this->bufMgr->unPinPage(this->file, this->headerPageNum, false);
   } else {
-    badgerdb::BlobFile indexFile(badgerdb::BlobFile::create(indexName));
-    this->file = &indexFile;
+    this->file = new BlobFile(indexName, true);
 
     Page *headerPage, *rootPage;
 
@@ -140,13 +139,14 @@ const void BTreeIndex::insertEntry(const void *key, const RecordId rid)
     this->bufMgr->unPinPage(this->file, this->rootPageNum, true);
   } else {
     PageId dataPageNum;
+    PageId dataPageNumPrev;
     Page* tempPage;
     int insertAt = -1, endOfRecordsOffset;
-    getPageNoAndOffsetOfKeyInsert(key, rootPage, dataPageNum, insertAt,endOfRecordsOffset);
+    getPageNoAndOffsetOfKeyInsert(key, rootPage, dataPageNum, insertAt, endOfRecordsOffset, dataPageNumPrev);
     this->bufMgr->readPage(this->file, dataPageNum, tempPage);
     LeafNodeInt* dataPage = reinterpret_cast<LeafNodeInt*>(tempPage);
     
-    // TODO _karantalreja : code to move elements to next page
+    // TODO karantalreja : code to move elements to next page
     for (int j = endOfRecordsOffset; j > insertAt; j--) {
       dataPage->ridArray[j] = dataPage->ridArray[j-1];
       dataPage->keyArray[j] = dataPage->keyArray[j-1];
@@ -178,6 +178,7 @@ const void BTreeIndex::startScan(const void* lowValParm,
     {
       this->lowValInt = *reinterpret_cast<int*>(const_cast<void*>(lowValParm));
       this->highValInt = *reinterpret_cast<int*>(const_cast<void*>(highValParm));
+      //if (lowValInt > highValInt) throw BadScanrangeException;
       break;  
     }
     case DOUBLE:
@@ -191,6 +192,29 @@ const void BTreeIndex::startScan(const void* lowValParm,
     default:
       break;
   }
+  Page* rootPage;
+  this->bufMgr->readPage(this->file, this->rootPageNum, rootPage);
+  int insertAt, endOfRecordsOffset;
+  PageId dataPageNum, dataPageNumPrev;
+  this->getPageNoAndOffsetOfKeyInsert(lowValParm, rootPage, dataPageNum, insertAt, endOfRecordsOffset, dataPageNumPrev, false);
+  if (dataPageNumPrev == dataPageNum) {
+    this->currentPageNum = dataPageNum;
+    this->bufMgr->readPage(this->file, this->currentPageNum, this->currentPageData);
+    this->nextEntry = insertAt;
+    LeafNodeInt* dataPage = reinterpret_cast<LeafNodeInt*>(this->currentPageData);
+    if (this->lowOp == GT) {
+      if (dataPage->keyArray[this->nextEntry] == lowValInt) {
+        if (this->nextEntry + 1 == INTARRAYLEAFSIZE) {
+          this->nextEntry = 0;
+          this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
+          this->currentPageNum = dataPage->rightSibPageNo;
+          this->bufMgr->readPage(this->file, this->currentPageNum, this->currentPageData);
+        } else this->nextEntry++;
+      }
+    }
+    if (dataPage->keyArray[this->nextEntry] > highValInt) throw NoSuchKeyFoundException();
+    else if (this->highOp == LT && dataPage->keyArray[this->nextEntry] == highValInt) throw NoSuchKeyFoundException();
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -199,7 +223,17 @@ const void BTreeIndex::startScan(const void* lowValParm,
 
 const void BTreeIndex::scanNext(RecordId& outRid) 
 {
-
+  LeafNodeInt* dataPage = reinterpret_cast<LeafNodeInt*>(this->currentPageData);
+  if (this->highOp == LT && dataPage->keyArray[this->nextEntry] >= this->highValInt) throw IndexScanCompletedException();
+  if (this->highOp == LTE && dataPage->keyArray[this->nextEntry] > this->highValInt) throw IndexScanCompletedException();
+  outRid = dataPage->ridArray[this->nextEntry];
+  if (this->nextEntry + 1 == INTARRAYLEAFSIZE) {
+    this->nextEntry = 0;
+    this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
+    this->currentPageNum = dataPage->rightSibPageNo;
+    if (this->currentPageNum == Page::INVALID_NUMBER) throw IndexScanCompletedException();
+    this->bufMgr->readPage(this->file, this->currentPageNum, this->currentPageData);
+  } else this->nextEntry++;
 }
 
 // -----------------------------------------------------------------------------
@@ -212,7 +246,7 @@ const void BTreeIndex::endScan()
 
 }
 
-void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, PageId& pageNo, int& insertAt, int& endOfRecordsOffset)
+void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, PageId& pageNo, int& insertAt, int& endOfRecordsOffset, PageId& lastPageNo, bool insert)
 {
   int i = 0, depth = 1;
   int keyValue = *reinterpret_cast<int*>(const_cast<void*>(key));
@@ -231,14 +265,17 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
           break;
         }
         if (currPage->keyArray[i] < keyValue) {
-          if (currPage->pageNoArray[i+1] != Page::INVALID_NUMBER) //TODO _karantalreja _split || i+1 == INTARRAYNONLEAFSIZE)
+          if (currPage->pageNoArray[i+1] != Page::INVALID_NUMBER) //TODO karantalreja _split || i+1 == INTARRAYNONLEAFSIZE)
             continue; // means if this was the last page in the node, we need to add to this page only otherwise continue
-          pathOfTraversal.push_back(std::pair<int,PageId>(i+1, lastPage));
         }
+        pathOfTraversal.push_back(std::pair<int,PageId>(i+1, lastPage));
         break;
       }
+#ifdef DEBUG
+    assert(i != INTARRAYNONLEAFSIZE);
+#endif
     }
-    // TODO _karantalreja : if i == INTARRAYNONLEAFSIZE then need to split page
+    // TODO karantalreja : if i == INTARRAYNONLEAFSIZE then need to split page
     this->bufMgr->unPinPage(this->file, lastPage, false);
     this->bufMgr->readPage(this->file, currPage->pageNoArray[i], tempPage);
     lastPage = currPage->pageNoArray[i];
@@ -255,7 +292,10 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
       break;
     }
     if (keyValue > dataPage->keyArray[i]) continue;
-    if (insertAt == -1) insertAt = i;
+    if (insertAt == -1) {
+      insertAt = i;
+      if (insert == false) break;
+    }
   }
   if (i == INTARRAYLEAFSIZE) {
     // split data page
@@ -263,17 +303,23 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
     Page* parentPage;
     this->bufMgr->readPage(this->file, parentPageId, parentPage);
     NonLeafNodeInt* parentData = reinterpret_cast<NonLeafNodeInt*>(parentPage);
-    int offset = pathOfTraversal.back().first; // TODO _karantalreja : Handle non-append mode
+    int offset = pathOfTraversal.back().first; // TODO karantalreja : Handle non-append mode
     Page *greaterKey;
     this->bufMgr->allocPage(this->file, parentData->pageNoArray[offset], greaterKey);
     dataPage->rightSibPageNo = parentData->pageNoArray[offset];
     parentData->keyArray[offset-1] = keyValue;
     this->bufMgr->unPinPage(this->file, lastPage, true);
     this->bufMgr->unPinPage(this->file, parentPageId, true);
+    this->bufMgr->unPinPage(this->file, parentData->pageNoArray[offset], false);
+    lastPageNo = pageNo;
     pageNo = parentData->pageNoArray[offset];
     insertAt = 0;
     endOfRecordsOffset = 0;
-  } else endOfRecordsOffset = i;
+  } else {
+    this->bufMgr->unPinPage(this->file, lastPage, false);
+    endOfRecordsOffset = i;
+    lastPageNo = pageNo;
+  }
   #ifdef DEBUG
   assert(insertAt >= 0);
   assert(pageNo >= 0);

@@ -418,6 +418,7 @@ void intTests()
 	checkPassFail(intScan(&index,0,GT,1,LT), 0)
 	checkPassFail(intScan(&index,300,GT,400,LT), 99)
 	checkPassFail(intScan(&index,3000,GTE,4000,LT), 1000)
+	checkPassFail(intScan(&index,0,GTE,5000,LT), 5000)
 }
 
 int intScan(BTreeIndex * index, int lowVal, Operator lowOp, int highVal, Operator highOp)
@@ -497,6 +498,7 @@ void doubleTests()
 	checkPassFail(doubleScan(&index,0,GT,1,LT), 0)
 	checkPassFail(doubleScan(&index,300,GT,400,LT), 99)
 	checkPassFail(doubleScan(&index,3000,GTE,4000,LT), 1000)
+	checkPassFail(doubleScan(&index,0,GTE,5000,LT), 5000)
 }
 
 int doubleScan(BTreeIndex * index, double lowVal, Operator lowOp, double highVal, Operator highOp)
@@ -576,6 +578,7 @@ void stringTests()
 	checkPassFail(stringScan(&index,0,GT,1,LT), 0)
 	checkPassFail(stringScan(&index,300,GT,400,LT), 99)
 	checkPassFail(stringScan(&index,3000,GTE,4000,LT), 1000)
+	checkPassFail(stringScan(&index,0,GTE,5000,LT), 5000)
 }
 
 int stringScan(BTreeIndex * index, int lowVal, Operator lowOp, int highVal, Operator highOp)

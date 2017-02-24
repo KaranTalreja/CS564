@@ -18,7 +18,7 @@
 
 #include <algorithm>
 #include <vector>
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 #include <iostream>
@@ -246,6 +246,7 @@ const void BTreeIndex::startScan(const void* lowValParm,
 
 const void BTreeIndex::scanNext(RecordId& outRid) 
 {
+  if (this->currentPageData == NULL) throw IndexScanCompletedException();
   LeafNodeInt* dataPage = reinterpret_cast<LeafNodeInt*>(this->currentPageData);
   if (this->highOp == LT && dataPage->keyArray[this->nextEntry] >= this->highValInt) {
     this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
@@ -264,7 +265,9 @@ const void BTreeIndex::scanNext(RecordId& outRid)
     this->nextEntry = 0;
     this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
     this->currentPageNum = dataPage->rightSibPageNo;
-    if (this->currentPageNum == Page::INVALID_NUMBER) throw IndexScanCompletedException();
+    if (this->currentPageNum == Page::INVALID_NUMBER) {
+      this->currentPageData = NULL;
+    }
     this->bufMgr->readPage(this->file, this->currentPageNum, this->currentPageData);
   } else this->nextEntry++;
 }
@@ -386,7 +389,7 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
         insertAt -= medianIdx;
         lastPageNo = pageNo;
         pageNo = parentData->pageNoArray[offset+1];
-        endOfRecordsOffset = medianIdx+1;
+        endOfRecordsOffset = (INTARRAYLEAFSIZE%2) ? medianIdx+1 : medianIdx;
       } else {
         lastPageNo = pageNo;
         pageNo = lastPage;

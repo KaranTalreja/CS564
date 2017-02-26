@@ -269,8 +269,7 @@ const void BTreeIndex::scanNext(RecordId& outRid)
     this->currentPageNum = dataPage->rightSibPageNo;
     if (this->currentPageNum == Page::INVALID_NUMBER) {
       this->currentPageData = NULL;
-    }
-    this->bufMgr->readPage(this->file, this->currentPageNum, this->currentPageData);
+    } else this->bufMgr->readPage(this->file, this->currentPageNum, this->currentPageData);
   } else this->nextEntry++;
 }
 

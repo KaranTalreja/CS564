@@ -237,7 +237,7 @@ const void BTreeIndex::startScan(const void* lowValParm,
     }
   } else { 
     #ifdef DEBUG
-    assert(0);
+    //assert(0);
     #endif
   }
 }
@@ -442,8 +442,12 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
         this->bufMgr->unPinPage(this->file, parentParentPageId, true);
         if (keyValue >= newRootData.keyArray[parentParentOffset]) { 
           this->bufMgr->unPinPage(this->file, newRootData.pageNoArray[parentParentOffset], true);
+          if (newRootData.level >= 4)
+            this->bufMgr->unPinPage(this->file, newRootData.pageNoArray[parentParentOffset+1], true);
         } else {
           this->bufMgr->unPinPage(this->file, newRootData.pageNoArray[parentParentOffset+1], true);
+          if (newRootData.level >= 4)
+            this->bufMgr->unPinPage(this->file, newRootData.pageNoArray[parentParentOffset], true);
         }
       } else {
         if (GparentPageId != parentPageId)

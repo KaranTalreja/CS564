@@ -355,6 +355,7 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
     PageId GparentPageId;
     int Goffset;
     NonLeafNodeInt* GparentData;
+    int k=0;
     while (pathOfTraversal.size() >= 1) {
       PageId parentPageId;
       int offset;
@@ -370,12 +371,9 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
         Goffset = offset;
         GparentData = parentData;
       }
-      int k=0;
       for (k = offset; k <= INTARRAYNONLEAFSIZE; k++) {
         if (parentData->pageNoArray[k] == Page::INVALID_NUMBER) break;
       }
-
-
 
       // Split parent page
       if (k == INTARRAYNONLEAFSIZE+1) {
@@ -397,6 +395,16 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
           newRootData = *reinterpret_cast<NonLeafNodeInt*>(newRoot);
           parentParentOffset = pathOfTraversal.back().first;
         }
+        for (k = parentParentOffset; k <= INTARRAYNONLEAFSIZE; k++) {
+          if (newRootData.pageNoArray[k] == Page::INVALID_NUMBER) break;
+        }
+        for (; k > parentParentOffset; k--) {
+          if (k-1 >= 0) newRootData.pageNoArray[k] = newRootData.pageNoArray[k-1];
+          if (k-2 >= 0) newRootData.keyArray[k-1] = newRootData.keyArray[k-2];
+        }
+#ifdef DEBUG
+        assert(newRootData.pageNoArray[parentParentOffset+1] == Page::INVALID_NUMBER || newRootData.pageNoArray[parentParentOffset] == newRootData.pageNoArray[parentParentOffset+1]);
+#endif
         this->bufMgr->allocPage(this->file, newRootData.pageNoArray[parentParentOffset+1], greaterParentPage);
         newRootData.keyArray[parentParentOffset] = parentData->keyArray[medianIdxParent];
 
@@ -414,12 +422,19 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
         parentData->pageNoArray[medianIdxParent+1] = Page::INVALID_NUMBER;
         parentData->keyArray[medianIdxParent] = 0;
 
-        if (done == false && keyValue >= newRootData.keyArray[parentParentOffset]) {
-          GparentData = reinterpret_cast<NonLeafNodeInt*>(greaterParentPage);
-          Goffset = offset - medianIdxParent - 1;
-          i = Goffset - 1;
-          GparentPageId = newRootData.pageNoArray[parentParentOffset+1];
-          done = true;
+        if (done == false) {
+          if (keyValue >= newRootData.keyArray[parentParentOffset]) {
+            GparentData = reinterpret_cast<NonLeafNodeInt*>(greaterParentPage);
+            Goffset = offset - medianIdxParent - 1;
+            i = Goffset - 1;
+            GparentPageId = newRootData.pageNoArray[parentParentOffset+1];
+            done = true;
+          } else {
+            GparentData = parentData;
+            Goffset = offset;
+            GparentPageId = parentPageId;
+            done = true;
+          }
         }
 
         memcpy(newRoot, &newRootData, sizeof(NonLeafNodeInt));
@@ -452,9 +467,15 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
 
 
 
-    for (; i > offset; i--) {
-      parentData->pageNoArray[i] = parentData->pageNoArray[i-1];
-      if (i-2 >= 0) parentData->keyArray[i-1] = parentData->keyArray[i-2];
+    for (k = offset; k <= INTARRAYNONLEAFSIZE; k++) {
+      if (parentData->pageNoArray[k] == Page::INVALID_NUMBER) break;
+    }
+#ifdef DEBUG
+    assert(k != INTARRAYNONLEAFSIZE+1); 
+#endif
+    for (; k > offset; k--) {
+      if (k-1 >= 0) parentData->pageNoArray[k] = parentData->pageNoArray[k-1];
+      if (k-2 >= 0) parentData->keyArray[k-1] = parentData->keyArray[k-2];
     }
     parentData->keyArray[offset] = dataPage->keyArray[medianIdx];
 #ifdef DEBUG

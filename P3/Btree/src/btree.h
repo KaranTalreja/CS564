@@ -489,22 +489,22 @@ class BTreeIndex {
 	 * @throws ScanNotInitializedException If no scan has been initialized.
 	**/
 	const void endScan();
-private:
   template <typename keyType> class keyTraits;
 
-	template <typename keyType, typename traits>
+private:
+	template <typename keyType, typename traits=keyTraits<keyType> >
 	const void startScanTemplate(const void* lowVal, const void* highVal);
 
-  template <typename keyType, typename traits>
+  template <typename keyType, typename traits=keyTraits<keyType> >
   const void scanNextTemplate(RecordId& outRid);
 
-	template <typename keyType, typename traits>
+	template <typename keyType, typename traits=keyTraits<keyType> >
   void getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, PageId& pageNo, int& insertAt, int& endOfRecordsOffset, PageId& lastPageNo, bool insert = true);
 
-	template <typename keyType, typename traits>
+	template <typename keyType, typename traits=keyTraits<keyType> >
 	void createRoot(Page* rootPage);
 
-  template <typename keyType, typename traits>
+  template <typename keyType, typename traits=keyTraits<keyType> >
   const void insertKeyTemplate(const void* key, const RecordId rid);
 };
 
@@ -559,6 +559,10 @@ public:
    static void assign(int& a, int b) {
         a = b;
    }
+
+   static int getKeyValue(const void* key) {
+      return *reinterpret_cast<int*>(const_cast<void*>(key));
+   }
 };
 
 template<>
@@ -604,6 +608,10 @@ public:
    static void assign(double& a, double b) {
         a = b;
    }
+
+   static double getKeyValue(const void* key) {
+      return *reinterpret_cast<double*>(const_cast<void*>(key));
+   }
 };
 
 template<>
@@ -614,8 +622,8 @@ public:
    static const int LEAFSIZE = STRINGARRAYLEAFSIZE;
    static const int NONLEAFSIZE = STRINGARRAYNONLEAFSIZE;
    static void setScanBounds(BTreeIndex* index, const void* lowValParm, const void* highValParm) {
-     index->lowValString = std::string(*reinterpret_cast<char**>(const_cast<void*>(lowValParm)));
-     index->highValString = std::string(*reinterpret_cast<char**>(const_cast<void*>(highValParm)));
+     index->lowValString = std::string(reinterpret_cast<char*>(const_cast<void*>(lowValParm)));
+     index->highValString = std::string(reinterpret_cast<char*>(const_cast<void*>(highValParm)));
    }
 
    static inline std::string getLowBound(BTreeIndex* index) {
@@ -659,13 +667,17 @@ public:
    }
 
    static void assign(char* a, char* b) {
-     
+      if (a == NULL) return;
       if (b != NULL) strncpy(a,b,STRINGSIZE);
       else strcpy(a,""); 
-  }
+   }
+
+   static char* getKeyValue(const void* key) {
+     return reinterpret_cast<char*>(const_cast<void*>(key));
+   }
 };
 
-template<typename keyType, typename traits=BTreeIndex::keyTraits<keyType> >
+template<typename keyType, typename traits>
 void BTreeIndex::createRoot(Page* rootPage) {
   typedef typename traits::nonLeafType nonLeafType;
   nonLeafType rootData;
@@ -675,13 +687,13 @@ void BTreeIndex::createRoot(Page* rootPage) {
   this->bufMgr->unPinPage(this->file, this->rootPageNum, true);
 }
 
-template<typename keyType, typename traits=BTreeIndex::keyTraits<keyType> >
+template<typename keyType, typename traits>
 void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, PageId& pageNo, int& insertAt, int& endOfRecordsOffset, PageId& lastPageNo, bool insert)
 {
   typedef typename traits::leafType leafType;
   typedef typename traits::nonLeafType nonLeafType;
   int i = 0, depth = 1;
-  keyType keyValue = *reinterpret_cast<keyType*>(const_cast<void*>(key));
+  keyType keyValue = traits::getKeyValue(key);
   nonLeafType* rootData = reinterpret_cast<nonLeafType*>(rootPage);
   nonLeafType* currPage = rootData;
   // <going to pade index , coming from page id>
@@ -928,7 +940,7 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
 }
 
 
-template <typename keyType, class traits=BTreeIndex::keyTraits<keyType> >
+template <typename keyType, class traits>
 const void BTreeIndex::scanNextTemplate(RecordId& outRid) {
   if (this->currentPageData == NULL) throw IndexScanCompletedException();
   typedef typename traits::leafType leafType;
@@ -956,7 +968,7 @@ const void BTreeIndex::scanNextTemplate(RecordId& outRid) {
   } else this->nextEntry++;
 }
 
-template <typename keyType, class traits=BTreeIndex::keyTraits<keyType> >
+template <typename keyType, class traits>
 const void BTreeIndex::startScanTemplate(const void* lowVal, const void* highVal) {
   traits::setScanBounds(this, lowVal, highVal);
   typedef typename traits::leafType leafType;
@@ -975,7 +987,10 @@ const void BTreeIndex::startScanTemplate(const void* lowVal, const void* highVal
         this->nextEntry = 0;
         this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
         this->currentPageNum = dataPage->rightSibPageNo;
-        this->bufMgr->readPage(this->file, this->currentPageNum, this->currentPageData);
+        if (this->currentPageNum == Page::INVALID_NUMBER) {
+          this->currentPageData = NULL;
+          throw NoSuchKeyFoundException();
+        } else this->bufMgr->readPage(this->file, this->currentPageNum, this->currentPageData);
       } else {
         this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
         throw NoSuchKeyFoundException();
@@ -983,7 +998,7 @@ const void BTreeIndex::startScanTemplate(const void* lowVal, const void* highVal
     }
     if (this->lowOp == GT) {
       if (traits::equal(dataPage->keyArray[this->nextEntry],traits::getLowBound(this))) {
-        if (this->nextEntry + 1 == traits::LEAFSIZE) {
+        if (this->nextEntry + 1 == traits::LEAFSIZE || dataPage->ridArray[this->nextEntry+1].page_number == Page::INVALID_NUMBER) {
           this->nextEntry = 0;
           this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
           this->currentPageNum = dataPage->rightSibPageNo;
@@ -1007,12 +1022,12 @@ const void BTreeIndex::startScanTemplate(const void* lowVal, const void* highVal
 }
 
 
-template <typename keyType, class traits=BTreeIndex::keyTraits<keyType> >
+template <typename keyType, class traits>
 const void BTreeIndex::insertKeyTemplate(const void* key, const RecordId rid) {
   typedef typename traits::nonLeafType nonLeafType;
   typedef typename traits::leafType leafType;
   Page* rootPage;
-  keyType keyValue = *reinterpret_cast<keyType*>(const_cast<void*>(key));
+  keyType keyValue = traits::getKeyValue(key);
   this->bufMgr->readPage(this->file, this->rootPageNum, rootPage);
   nonLeafType* rootData = reinterpret_cast<nonLeafType*>(rootPage);
   if (rootData->pageNoArray[0] == Page::INVALID_NUMBER) {

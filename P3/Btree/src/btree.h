@@ -535,6 +535,30 @@ public:
    static inline int getUpperBound(BTreeIndex* index) {
      return index->highValInt;
    }
+
+   static bool less(int a, int b) {
+     return a < b;
+   }
+
+   static bool great(int a, int b) {
+     return a > b;
+   }
+
+   static bool lessE(int a, int b) {
+     return a <= b;
+   }
+
+   static bool greatE(int a, int b) {
+     return a >= b;
+   }
+
+   static bool equal(int a, int b) {
+     return a == b;
+   }
+
+   static void assign(int& a, int b) {
+        a = b;
+   }
 };
 
 template<>
@@ -556,6 +580,89 @@ public:
    static inline double getUpperBound(BTreeIndex* index) {
      return index->highValDouble;
    }
+
+   static bool less(double a, double b) {
+     return a < b;
+   }
+
+   static bool great(double a, double b) {
+     return a > b;
+   }
+
+   static bool lessE(double a, double b) {
+     return a <= b;
+   }
+
+   static bool greatE(double a, double b) {
+     return a >= b;
+   }
+
+   static bool equal(double a, double b) {
+     return a == b;
+   }
+
+   static void assign(double& a, double b) {
+        a = b;
+   }
+};
+
+template<>
+class BTreeIndex::keyTraits<char*> {
+public:
+   typedef LeafNodeString leafType;
+   typedef NonLeafNodeString nonLeafType;
+   static const int LEAFSIZE = STRINGARRAYLEAFSIZE;
+   static const int NONLEAFSIZE = STRINGARRAYNONLEAFSIZE;
+   static void setScanBounds(BTreeIndex* index, const void* lowValParm, const void* highValParm) {
+     index->lowValString = std::string(*reinterpret_cast<char**>(const_cast<void*>(lowValParm)));
+     index->highValString = std::string(*reinterpret_cast<char**>(const_cast<void*>(highValParm)));
+   }
+
+   static inline std::string getLowBound(BTreeIndex* index) {
+     return index->lowValString;
+   }
+
+   static inline std::string getUpperBound(BTreeIndex* index) {
+     return index->highValString;
+   }
+
+   static bool less(char* a, char* b) {
+     return strncmp(a,b,STRINGSIZE) < 0 ? true : false;
+   }
+
+   static bool great(char* a, std::string b) {
+     return strncmp(a,b.c_str(),STRINGSIZE) > 0 ? true : false;
+   }
+
+   static bool great(char* a, char* b) {
+     return strncmp(a,b,STRINGSIZE) > 0 ? true : false;
+   }
+
+   static bool lessE(char* a, char* b) {
+     return strncmp(a,b,STRINGSIZE) <= 0 ? true : false;
+   }
+
+   static bool greatE(char* a, std::string b) {
+     return strncmp(a,b.c_str(),STRINGSIZE) >= 0 ? true : false;
+   }
+
+   static bool greatE(char* a, char* b) {
+     return strncmp(a,b,STRINGSIZE) >= 0 ? true : false;
+   }
+
+   static bool equal(char* a, std::string b) {
+     return strncmp(a,b.c_str(),STRINGSIZE) == 0 ? true : false;
+   }
+
+   static bool equal(char* a, char* b) {
+     return strncmp(a,b,STRINGSIZE) == 0 ? true : false;
+   }
+
+   static void assign(char* a, char* b) {
+     
+      if (b != NULL) strncpy(a,b,STRINGSIZE);
+      else strcpy(a,""); 
+  }
 };
 
 template<typename keyType, typename traits=BTreeIndex::keyTraits<keyType> >
@@ -582,7 +689,7 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
   PageId lastPage = this->rootPageNum;
   Page* tempPage;
   while (depth < rootData->level) {
-    if (keyValue < currPage->keyArray[0]) {
+    if (traits::less(keyValue,currPage->keyArray[0])) {
       // Case smaller than all keys
       i = 0;
       pathOfTraversal.push_back(std::pair<int,PageId>(i, lastPage));
@@ -596,7 +703,7 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
         }
         /* 1st page contains keys greater than key[0] so if keyValue is greater than key[1]:
          * the key must lie in page[2] or ahead. Since page[2] contains keys greater than key[1] */
-        if (currPage->keyArray[i] <= keyValue) {
+        if (traits::lessE(currPage->keyArray[i],keyValue)) {
           // If the next page is not invalid, it might contain the key, so continue.
 #ifdef DEBUG
           // keys all smaller than keyArray[i] should lie in this page so it should be valid
@@ -629,7 +736,7 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
       if (insertAt == traits::LEAFSIZE) insertAt = i;
       break;
     }
-    if (keyValue > dataPage->keyArray[i]) continue;
+    if (traits::great(keyValue,dataPage->keyArray[i])) continue;
     if (insertAt == traits::LEAFSIZE) {
       insertAt = i;
       if (insert == false) break;
@@ -688,30 +795,30 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
         }
         for (; k > parentParentOffset; k--) {
           if (k-1 >= 0) newRootData.pageNoArray[k] = newRootData.pageNoArray[k-1];
-          if (k-2 >= 0) newRootData.keyArray[k-1] = newRootData.keyArray[k-2];
+          if (k-2 >= 0) traits::assign(newRootData.keyArray[k-1],newRootData.keyArray[k-2]);
         }
 #ifdef DEBUG
         assert(newRootData.pageNoArray[parentParentOffset+1] == Page::INVALID_NUMBER || newRootData.pageNoArray[parentParentOffset] == newRootData.pageNoArray[parentParentOffset+1]);
 #endif
         this->bufMgr->allocPage(this->file, newRootData.pageNoArray[parentParentOffset+1], greaterParentPage);
-        newRootData.keyArray[parentParentOffset] = parentData->keyArray[medianIdxParent];
+        traits::assign(newRootData.keyArray[parentParentOffset], parentData->keyArray[medianIdxParent]);
 
         nonLeafType dataPageRight;
         memset(&dataPageRight, 0, sizeof(nonLeafType));
         dataPageRight.level = parentData->level;
         for (int i = medianIdxParent+1, j = 0; i < traits::NONLEAFSIZE; i++,j++) {
-          dataPageRight.keyArray[j] = parentData->keyArray[i];
+          traits::assign(dataPageRight.keyArray[j], parentData->keyArray[i]);
           dataPageRight.pageNoArray[j+1] = parentData->pageNoArray[i+1];
-          parentData->keyArray[i] = 0;
+          traits::assign(parentData->keyArray[i], 0);
           parentData->pageNoArray[i+1] = Page::INVALID_NUMBER;
         }
 
         dataPageRight.pageNoArray[0] = parentData->pageNoArray[medianIdxParent+1];
         parentData->pageNoArray[medianIdxParent+1] = Page::INVALID_NUMBER;
-        parentData->keyArray[medianIdxParent] = 0;
+        traits::assign(parentData->keyArray[medianIdxParent],0);
 
         if (done == false) {
-          if (keyValue >= newRootData.keyArray[parentParentOffset]) {
+          if (traits::greatE(keyValue,newRootData.keyArray[parentParentOffset])) {
             GparentData = reinterpret_cast<nonLeafType*>(greaterParentPage);
             Goffset = offset - medianIdxParent - 1;
             i = Goffset - 1;
@@ -729,7 +836,7 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
         memcpy(greaterParentPage, &dataPageRight, sizeof(nonLeafType));
 
         this->bufMgr->unPinPage(this->file, parentParentPageId, true);
-        if (keyValue >= newRootData.keyArray[parentParentOffset]) {
+        if (traits::greatE(keyValue, newRootData.keyArray[parentParentOffset])) {
           this->bufMgr->unPinPage(this->file, newRootData.pageNoArray[parentParentOffset], true);
           if (newRootData.level >= 4)
             this->bufMgr->unPinPage(this->file, newRootData.pageNoArray[parentParentOffset+1], true);
@@ -756,13 +863,13 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
 #endif
     for (; k > offset; k--) {
       if (k-1 >= 0) parentData->pageNoArray[k] = parentData->pageNoArray[k-1];
-      if (k-2 >= 0) parentData->keyArray[k-1] = parentData->keyArray[k-2];
+      if (k-2 >= 0) traits::assign(parentData->keyArray[k-1], parentData->keyArray[k-2]);
     }
-    parentData->keyArray[offset] = dataPage->keyArray[medianIdx];
+    traits::assign(parentData->keyArray[offset],dataPage->keyArray[medianIdx]);
 #ifdef DEBUG
-    assert(offset == 0 || parentData->keyArray[offset-1] < parentData->keyArray[offset]);
+    assert(offset == 0 || traits::less(parentData->keyArray[offset-1],parentData->keyArray[offset]));
     if (offset+2 < traits::NONLEAFSIZE && parentData->pageNoArray[offset+2] != Page::INVALID_NUMBER)
-      assert(parentData->keyArray[offset+1] > parentData->keyArray[offset]);
+      assert(traits::great(parentData->keyArray[offset+1],parentData->keyArray[offset]));
 
     // As insert mode, the above loop should have copied this value to the next slot or
     // if its the first empty slot its value should be Page::INVALID_NUMBER
@@ -774,10 +881,10 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
     dataPageRight.rightSibPageNo = dataPage->rightSibPageNo;
     dataPage->rightSibPageNo = parentData->pageNoArray[offset+1];
 #ifdef DEBUG
-    assert(insertAt == 0 || dataPage->keyArray[insertAt-1] < keyValue);
-    assert(insertAt == traits::LEAFSIZE || dataPage->keyArray[insertAt] > keyValue);
+    assert(insertAt == 0 || traits::less(dataPage->keyArray[insertAt-1],keyValue));
+    assert(insertAt == traits::LEAFSIZE || traits::great(dataPage->keyArray[insertAt],keyValue));
 #endif
-    if (keyValue > dataPage->keyArray[medianIdx]) {
+    if (traits::great(keyValue,dataPage->keyArray[medianIdx])) {
       insertAt -= medianIdx;
       lastPageNo = pageNo;
       pageNo = parentData->pageNoArray[offset+1];
@@ -788,20 +895,20 @@ void BTreeIndex::getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, 
       endOfRecordsOffset = medianIdx;
     }
     for (int i = medianIdx, j = 0; i < traits::LEAFSIZE; i++,j++) {
-      dataPageRight.keyArray[j] = dataPage->keyArray[i];
+      traits::assign(dataPageRight.keyArray[j],dataPage->keyArray[i]);
       dataPageRight.ridArray[j] = dataPage->ridArray[i];
-      dataPage->keyArray[i] = 0;
+      traits::assign(dataPage->keyArray[i],0);
       dataPage->ridArray[i].page_number = Page::INVALID_NUMBER;
       dataPage->ridArray[i].slot_number = 0;
     }
     memcpy(greaterKey, &dataPageRight, sizeof(leafType));
 #ifdef DEBUG
-    if (keyValue > dataPageRight.keyArray[0]) {
-      assert(insertAt == 0 || dataPageRight.keyArray[insertAt-1] < keyValue);
-      assert(insertAt == traits::LEAFSIZE || insertAt == endOfRecordsOffset ||dataPageRight.keyArray[insertAt] > keyValue);
+    if (traits::great(keyValue,dataPageRight.keyArray[0])) {
+      assert(insertAt == 0 || traits::less(dataPageRight.keyArray[insertAt-1], keyValue));
+      assert(insertAt == traits::LEAFSIZE || insertAt == endOfRecordsOffset || traits::great(dataPageRight.keyArray[insertAt],keyValue));
     } else {
-      assert(insertAt == 0 || dataPage->keyArray[insertAt-1] < keyValue);
-      assert(insertAt == traits::LEAFSIZE || insertAt == endOfRecordsOffset ||dataPage->keyArray[insertAt] > keyValue);
+      assert(insertAt == 0 || traits::less(dataPage->keyArray[insertAt-1], keyValue));
+      assert(insertAt == traits::LEAFSIZE || insertAt == endOfRecordsOffset || traits::great(dataPage->keyArray[insertAt],keyValue));
     }
 #endif
     this->bufMgr->unPinPage(this->file, lastPage, true);
@@ -826,11 +933,11 @@ const void BTreeIndex::scanNextTemplate(RecordId& outRid) {
   if (this->currentPageData == NULL) throw IndexScanCompletedException();
   typedef typename traits::leafType leafType;
   leafType* dataPage = reinterpret_cast<leafType*>(this->currentPageData);
-  if (this->highOp == LT && dataPage->keyArray[this->nextEntry] >= traits::getUpperBound(this)) {
+  if (this->highOp == LT && traits::greatE(dataPage->keyArray[this->nextEntry],traits::getUpperBound(this))) {
     this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
     throw IndexScanCompletedException();
   }
-  if (this->highOp == LTE && dataPage->keyArray[this->nextEntry] > traits::getUpperBound(this)) {
+  if (this->highOp == LTE && traits::great(dataPage->keyArray[this->nextEntry],traits::getUpperBound(this))) {
     this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
     throw IndexScanCompletedException();
   }
@@ -875,7 +982,7 @@ const void BTreeIndex::startScanTemplate(const void* lowVal, const void* highVal
       }
     }
     if (this->lowOp == GT) {
-      if (dataPage->keyArray[this->nextEntry] == traits::getLowBound(this)) {
+      if (traits::equal(dataPage->keyArray[this->nextEntry],traits::getLowBound(this))) {
         if (this->nextEntry + 1 == traits::LEAFSIZE) {
           this->nextEntry = 0;
           this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
@@ -884,11 +991,11 @@ const void BTreeIndex::startScanTemplate(const void* lowVal, const void* highVal
         } else this->nextEntry++;
       }
     }
-    if (dataPage->keyArray[this->nextEntry] > traits::getUpperBound(this)) {
+    if (traits::great(dataPage->keyArray[this->nextEntry],traits::getUpperBound(this))) {
       this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
       throw NoSuchKeyFoundException();
     }
-    else if (this->highOp == LT && dataPage->keyArray[this->nextEntry] == traits::getUpperBound(this)){
+    else if (this->highOp == LT && traits::equal(dataPage->keyArray[this->nextEntry], traits::getUpperBound(this))){
       this->bufMgr->unPinPage(this->file, this->currentPageNum, false);
       throw NoSuchKeyFoundException();
     }
@@ -922,13 +1029,13 @@ const void BTreeIndex::insertKeyTemplate(const void* key, const RecordId rid) {
     memcpy(lessKey, &dataPageLeft, sizeof(leafType));
     this->bufMgr->unPinPage(this->file, rootData->pageNoArray[0], true);
 
-    dataPageRight.keyArray[0] = keyValue;
+    traits::assign(dataPageRight.keyArray[0],keyValue);
     dataPageRight.ridArray[0] = rid;
     memcpy(greaterKey, &dataPageRight, sizeof(leafType));
     this->bufMgr->unPinPage(this->file, rootData->pageNoArray[1], true);
 
     rootData->level = 2;
-    rootData->keyArray[0] = keyValue;
+    traits::assign(rootData->keyArray[0],keyValue);
     this->bufMgr->unPinPage(this->file, this->rootPageNum, true);
   } else {
     PageId dataPageNum;
@@ -941,10 +1048,10 @@ const void BTreeIndex::insertKeyTemplate(const void* key, const RecordId rid) {
 
     for (int j = endOfRecordsOffset; j > insertAt; j--) {
       dataPage->ridArray[j] = dataPage->ridArray[j-1];
-      dataPage->keyArray[j] = dataPage->keyArray[j-1];
+      traits::assign(dataPage->keyArray[j],dataPage->keyArray[j-1]);
     }
     dataPage->ridArray[insertAt] = rid;
-    dataPage->keyArray[insertAt] = keyValue;
+    traits::assign(dataPage->keyArray[insertAt],keyValue);
     this->bufMgr->unPinPage(this->file, dataPageNum, true);
 #ifdef DEBUG
     cout << "DBG: Key " << keyValue << " inserted on page " << dataPageNum << " at offset " << insertAt << ":" << endOfRecordsOffset << endl;

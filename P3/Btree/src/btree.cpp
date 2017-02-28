@@ -68,6 +68,7 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
       createRoot<double>(rootPage);
       break;
     case STRING:
+      createRoot<char*>(rootPage);
       break;
     default:
       break;
@@ -122,7 +123,7 @@ const void BTreeIndex::insertEntry(const void *key, const RecordId rid)
     this->insertKeyTemplate<double>(key, rid);
     break;
   case STRING:
-    //this->insertKeyTemplate<char*>(key,rid);
+    this->insertKeyTemplate<char*>(key,rid);
     break;
   default:
     break;
@@ -155,6 +156,7 @@ const void BTreeIndex::startScan(const void* lowValParm,
     }
     case STRING:
     {
+      this->startScanTemplate<char*>(lowValParm, highValParm);
       break;  
     }
     default:
@@ -181,6 +183,7 @@ const void BTreeIndex::scanNext(RecordId& outRid)
     }
     case STRING:
     {
+      this->scanNextTemplate<char*>(outRid);
       break;
     }
     default:

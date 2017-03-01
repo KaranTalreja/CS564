@@ -128,7 +128,24 @@ const void BTreeIndex::insertEntry(const void *key, const RecordId rid)
   default:
     break;
   }
+}
 
+const bool BTreeIndex::deleteEntry(const void *key)
+{
+  switch(this->attributeType) {
+  case INTEGER:
+    return this->deleteKeyTemplate<int>(key);
+    break;
+  case DOUBLE:
+    return this->deleteKeyTemplate<double>(key);
+    break;
+  case STRING:
+    return this->deleteKeyTemplate<char*>(key);
+    break;
+  default:
+    break;
+  }
+  return false;
 }
 
 // -----------------------------------------------------------------------------

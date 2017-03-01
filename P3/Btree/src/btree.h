@@ -455,6 +455,7 @@ class BTreeIndex {
 	**/
 	const void insertEntry(const void* key, const RecordId rid);
 
+	const bool deleteEntry(const void* key);
 
   /**
 	 * Begin a filtered scan of the index.  For instance, if the method is called 
@@ -506,6 +507,9 @@ private:
 
   template <typename keyType, typename traits=keyTraits<keyType> >
   const void insertKeyTemplate(const void* key, const RecordId rid);
+
+  template <typename keyType, typename traits=keyTraits<keyType> >
+  const bool deleteKeyTemplate(const void* key);
 };
 
 // This is the structure for tuples in the base relation
@@ -1075,6 +1079,95 @@ const void BTreeIndex::insertKeyTemplate(const void* key, const RecordId rid) {
     cout << "DBG: Key " << keyValue << " inserted on page " << dataPageNum << " at offset " << insertAt << ":" << endOfRecordsOffset << endl;
 #endif
   }
+}
+
+template<typename keyType, typename traits>
+const bool BTreeIndex::deleteKeyTemplate(const void* key) {
+  typedef typename traits::nonLeafType nonLeafType;
+  typedef typename traits::leafType leafType;
+  Page* rootPage;
+  keyType keyValue = traits::getKeyValue(key);
+  this->bufMgr->readPage(this->file, this->rootPageNum, rootPage);
+  nonLeafType* rootData = reinterpret_cast<nonLeafType*>(rootPage);
+  nonLeafType* currPage = rootData;
+  std::vector<std::pair<int,PageId>> pathOfTraversal;
+  bool retval = true;
+  PageId lastPage = this->rootPageNum;
+  Page* tempPage;
+  int depth = 1, i = 0;
+  while (depth < rootData->level) {
+    if (traits::less(keyValue,currPage->keyArray[0])) {
+      // Case smaller than all keys
+      i = 0;
+      pathOfTraversal.push_back(std::pair<int,PageId>(i, lastPage));
+    } else {
+      // invariant page[i] contains keys >= key[i-1]
+      // invariant page[i] contains keys < key [i]
+      for (i = 0; i < traits::NONLEAFSIZE; i++) {
+        if (currPage->pageNoArray[i+1] == Page::INVALID_NUMBER) {
+          pathOfTraversal.push_back(std::pair<int,PageId>(i, lastPage));
+          break;
+        }
+        /* 1st page contains keys greater than key[0] so if keyValue is greater than key[1]:
+         * the key must lie in page[2] or ahead. Since page[2] contains keys greater than key[1] */
+        if (traits::lessE(currPage->keyArray[i],keyValue)) {
+          // If the next page is not invalid, it might contain the key, so continue.
+#ifdef DEBUG
+          // keys all smaller than keyArray[i] should lie in this page so it should be valid
+          assert(currPage->pageNoArray[i] != Page::INVALID_NUMBER);
+          // keys all greater than equal to keyArray[i] should lie in page[i+1] or ahead.
+          assert(currPage->pageNoArray[i+1] != Page::INVALID_NUMBER);
+#endif
+          continue; // means if this was the last page in the node, we need to add to this page only otherwise continue
+        }
+        pathOfTraversal.push_back(std::pair<int,PageId>(i, lastPage));
+        break;
+      }
+    }
+    if (i == traits::NONLEAFSIZE) {
+      pathOfTraversal.push_back(std::pair<int,PageId>(i, lastPage));
+    }
+    this->bufMgr->unPinPage(this->file, lastPage, false);
+    this->bufMgr->readPage(this->file, currPage->pageNoArray[i], tempPage);
+    lastPage = currPage->pageNoArray[i];
+    currPage = reinterpret_cast<nonLeafType*>(tempPage);
+    depth++;
+  }
+  PageId dataPageId = lastPage;
+  i = 0;
+  int startLoc = traits::LEAFSIZE, endLoc;
+  leafType* dataPage = reinterpret_cast<leafType*>(currPage);
+  for (i = 0; i < traits::LEAFSIZE; i++) {
+    if (dataPage->ridArray[i].page_number == Page::INVALID_NUMBER) {
+      if (startLoc == traits::LEAFSIZE) startLoc = i;
+      break;
+    }
+    if (traits::great(keyValue,dataPage->keyArray[i])) continue;
+    if (startLoc == traits::LEAFSIZE) {
+      startLoc = i;
+    }
+  }
+  endLoc = i <= traits::LEAFSIZE ? i : traits::LEAFSIZE;
+  if (!traits::equal(dataPage->keyArray[startLoc],keyValue)) retval = false;
+  if (true == retval) {
+    if (startLoc != 0) {
+      for (int i = startLoc; i < endLoc-1; i++) {
+        dataPage->ridArray[i] = dataPage->ridArray[i+1];
+        traits::assign(dataPage->keyArray[i],dataPage->keyArray[i+1]);
+      }
+      if (startLoc == endLoc) {
+        dataPage->ridArray[startLoc].page_number = Page::INVALID_NUMBER;
+        dataPage->ridArray[startLoc].slot_number = Page::INVALID_SLOT;
+        traits::assign(dataPage->keyArray[startLoc], 0);
+      }
+    } else {
+#ifdef DEBUG
+      assert(0);
+#endif
+    }
+  }
+  this->bufMgr->unPinPage(this->file, dataPageId, true);
+  return retval;
 }
 
 }

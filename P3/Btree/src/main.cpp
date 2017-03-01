@@ -60,8 +60,10 @@ void createRelationForward();
 void createRelationBackward();
 void createRelationRandom();
 void intTests();
+void intDeleteTests();
 int intScan(BTreeIndex *index, int lowVal, Operator lowOp, int highVal, Operator highOp);
 void indexTests();
+void indexDeleteTests();
 void doubleTests();
 int doubleScan(BTreeIndex *index, double lowVal, Operator lowOp, double highVal, Operator highOp);
 void stringTests();
@@ -70,6 +72,7 @@ void test1();
 void test2();
 void test3();
 void errorTests();
+void test4();
 void deleteRelation();
 
 int main(int argc, char **argv)
@@ -160,6 +163,7 @@ int main(int argc, char **argv)
 	test2();
 	test3();
 	errorTests();
+	test4();
 
 	delete bufMgr;
 	return 0;
@@ -196,6 +200,17 @@ void test3()
 	createRelationRandom();
 	indexTests();
 	deleteRelation();
+}
+
+void test4()
+{
+  // Create a relation with tuples valued 0 to relationSize in random order and perform index tests
+  // on attributes of all three types (int, double, string)
+  std::cout << "--------------------" << std::endl;
+  std::cout << "deleteRelationForward" << std::endl;
+  createRelationForward();
+  indexDeleteTests();
+  deleteRelation();
 }
 
 // -----------------------------------------------------------------------------
@@ -401,6 +416,43 @@ void indexTests()
   }
 }
 
+void indexDeleteTests()
+{
+  if(testNum == 1)
+  {
+    intDeleteTests();
+    try
+    {
+      File::remove(intIndexName);
+    }
+    catch(FileNotFoundException e)
+    {
+    }
+  }
+  else if(testNum == 2)
+  {
+    doubleTests();
+    try
+    {
+      File::remove(doubleIndexName);
+    }
+    catch(FileNotFoundException e)
+    {
+    }
+  }
+  else if(testNum == 3)
+  {
+    stringTests();
+    try
+    {
+      File::remove(stringIndexName);
+    }
+    catch(FileNotFoundException e)
+    {
+    }
+  }
+}
+
 // -----------------------------------------------------------------------------
 // intTests
 // -----------------------------------------------------------------------------
@@ -421,6 +473,31 @@ void intTests()
 	checkPassFail(intScan(&index,0,GTE,5000,LT), 5000)
 	checkPassFail(intScan(&index,0,GTE,5005,LT), 5000)
 	checkPassFail(intScan(&index,5000,GTE,5005,LT), 0)
+}
+
+
+// -----------------------------------------------------------------------------
+// intTests
+// -----------------------------------------------------------------------------
+
+void intDeleteTests()
+{
+  std::cout << "Create a B+ Tree index on the integer field" << std::endl;
+  BTreeIndex index(relationName, intIndexName, bufMgr, offsetof(tuple,i), INTEGER);
+
+  int key = 29;
+  index.deleteEntry(&key);
+  // run some tests
+  checkPassFail(intScan(&index,25,GT,40,LT), 13)
+  checkPassFail(intScan(&index,20,GTE,35,LTE), 15)
+  checkPassFail(intScan(&index,-3,GT,3,LT), 3)
+  checkPassFail(intScan(&index,996,GT,1001,LT), 4)
+  checkPassFail(intScan(&index,0,GT,1,LT), 0)
+  checkPassFail(intScan(&index,300,GT,400,LT), 99)
+  checkPassFail(intScan(&index,3000,GTE,4000,LT), 1000)
+  checkPassFail(intScan(&index,0,GTE,5000,LT), 4999)
+  checkPassFail(intScan(&index,0,GTE,5005,LT), 4999)
+  checkPassFail(intScan(&index,5000,GTE,5005,LT), 0)
 }
 
 int intScan(BTreeIndex * index, int lowVal, Operator lowOp, int highVal, Operator highOp)

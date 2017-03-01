@@ -526,6 +526,7 @@ public:
    static void setScanBounds(BTreeIndex* index, const void* lowValParm, const void* highValParm) {
      index->lowValInt = *reinterpret_cast<int*>(const_cast<void*>(lowValParm));
      index->highValInt = *reinterpret_cast<int*>(const_cast<void*>(highValParm));
+     if (index->lowValInt > index->highValInt) throw BadScanrangeException();
    }
 
    static inline int getLowBound(BTreeIndex* index) {
@@ -575,6 +576,7 @@ public:
    static void setScanBounds(BTreeIndex* index, const void* lowValParm, const void* highValParm) {
      index->lowValDouble = *reinterpret_cast<double*>(const_cast<void*>(lowValParm));
      index->highValDouble = *reinterpret_cast<double*>(const_cast<void*>(highValParm));
+     if (index->lowValDouble > index->highValDouble) throw BadScanrangeException();
    }
 
    static inline double getLowBound(BTreeIndex* index) {
@@ -624,6 +626,7 @@ public:
    static void setScanBounds(BTreeIndex* index, const void* lowValParm, const void* highValParm) {
      index->lowValString = std::string(reinterpret_cast<char*>(const_cast<void*>(lowValParm)));
      index->highValString = std::string(reinterpret_cast<char*>(const_cast<void*>(highValParm)));
+     if (index->lowValString > index->highValString) throw BadScanrangeException();
    }
 
    static inline std::string getLowBound(BTreeIndex* index) {

@@ -141,8 +141,23 @@ const void BTreeIndex::startScan(const void* lowValParm,
 				   const Operator highOpParm)
 {
   this->scanExecuting = true;
-  this->lowOp = lowOpParm;
-  this->highOp = highOpParm;
+  switch (lowOpParm) {
+  case GT:
+  case GTE:
+    this->lowOp = lowOpParm;
+    break;
+  default:
+    throw BadOpcodesException();
+  }
+  switch (highOpParm) {
+  case LT:
+  case LTE:
+    this->highOp = highOpParm;
+    break;
+  default:
+    throw BadOpcodesException();
+  }
+
   switch (this->attributeType) {
     case INTEGER:
     {
@@ -170,6 +185,7 @@ const void BTreeIndex::startScan(const void* lowValParm,
 
 const void BTreeIndex::scanNext(RecordId& outRid) 
 {
+  if(this->scanExecuting == false) throw ScanNotInitializedException();
   switch (this->attributeType) {
     case INTEGER:
     {
@@ -197,6 +213,7 @@ const void BTreeIndex::scanNext(RecordId& outRid)
 //
 const void BTreeIndex::endScan() 
 {
+  if (this->scanExecuting == false) throw ScanNotInitializedException();
   this->scanExecuting = false;
 }
 

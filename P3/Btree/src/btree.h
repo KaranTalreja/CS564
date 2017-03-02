@@ -27,11 +27,11 @@
 #include "exceptions/end_of_file_exception.h"
 #include <assert.h>
 
-//#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #include <iostream>
-using namespace std;
+//using namespace std;
 #endif
 
 namespace badgerdb
@@ -510,6 +510,15 @@ private:
 
   template <typename keyType, typename traits=keyTraits<keyType> >
   const bool deleteKeyTemplate(const void* key);
+  
+  template<typename keyType, typename traits=keyTraits<keyType> >
+  PageId getSiblingPage (Page* currPage, PageId parentPageId, int parentOffset, bool dataPage, bool right);
+  
+  template<typename keyType, typename traits=keyTraits<keyType> >
+  int getOccupancy(Page* currPage, bool dataPage);
+  
+  template<typename keyType, typename traits>
+  void deleteEntryInLeaf(Page* leafPage, int startLoc, int endLoc);
 };
 
 // This is the structure for tuples in the base relation
@@ -1076,9 +1085,75 @@ const void BTreeIndex::insertKeyTemplate(const void* key, const RecordId rid) {
     traits::assign(dataPage->keyArray[insertAt],keyValue);
     this->bufMgr->unPinPage(this->file, dataPageNum, true);
 #ifdef DEBUG
-    cout << "DBG: Key " << keyValue << " inserted on page " << dataPageNum << " at offset " << insertAt << ":" << endOfRecordsOffset << endl;
+    std::cout << "DBG: Key " << keyValue << " inserted on page " << dataPageNum << " at offset " << insertAt << ":" << endOfRecordsOffset << std::endl;
 #endif
   }
+}
+
+template<typename keyType, typename traits>
+PageId BTreeIndex::getSiblingPage (Page* currPage, PageId parentPageId, int parentOffset, bool dataPage, bool right) {
+  typedef typename traits::leafType leafType;
+  typedef typename traits::nonLeafType nonLeafType;
+  if (true == dataPage) {
+    if (right == true) return reinterpret_cast<leafType*>(currPage)->rightSibPageNo;
+    else {
+      Page* parentPage;
+      this->bufMgr->readPage(this->file, parentPageId, parentPage);
+      if (parentOffset > 0) {
+        PageId retval = reinterpret_cast<nonLeafType*>(parentPage)->pageNoArray[parentOffset-1];
+        this->bufMgr->unPinPage(this->file, parentPageId, false);
+        return retval;
+      }
+      else {
+#ifdef DEBUG
+        assert(0);
+#endif
+      }
+      this->bufMgr->unPinPage(this->file, parentPageId, false);
+    }
+  } else {
+#ifdef DEBUG
+    assert(0);
+#endif
+  }
+}
+
+template<typename keyType, typename traits>
+int BTreeIndex::getOccupancy(Page* currPage, bool dataPage) {
+  typedef typename traits::nonLeafType nonLeafType;
+  typedef typename traits::leafType leafType;
+  int retval;
+  if (dataPage == true) {
+    leafType* dataPage = reinterpret_cast<leafType*>(currPage);
+    for (int i = 0; i < traits::LEAFSIZE; i++) {
+      if (dataPage->ridArray[i].page_number == Page::INVALID_NUMBER) {
+        retval = i;
+        break;
+      }
+    }
+  } else {
+    nonLeafType* nonData = reinterpret_cast<nonLeafType*>(currPage);
+    for (int i = 0; i < traits::NONLEAFSIZE; i++) {
+      if (nonData->pageNoArray[i] == Page::INVALID_NUMBER) {
+        retval = i;
+        break;
+      }
+    }
+  }
+  return retval;
+}
+
+template<typename keyType, typename traits>
+void BTreeIndex::deleteEntryInLeaf(Page* leafPage, int startLoc, int endLoc) {
+  typedef typename traits::leafType leafType;
+  leafType* dataPage = reinterpret_cast<leafType*>(leafPage);
+  for (int i = startLoc; i < endLoc-1; i++) {
+    dataPage->ridArray[i] = dataPage->ridArray[i+1];
+    traits::assign(dataPage->keyArray[i],dataPage->keyArray[i+1]);
+  }
+  dataPage->ridArray[endLoc-1].page_number = Page::INVALID_NUMBER;
+  dataPage->ridArray[endLoc-1].slot_number = Page::INVALID_SLOT;
+  traits::assign(dataPage->keyArray[endLoc-1], 0);
 }
 
 template<typename keyType, typename traits>
@@ -1147,26 +1222,84 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
       startLoc = i;
     }
   }
+  PageId parentPageId = pathOfTraversal.back().second;
+  int parentPageOffset = pathOfTraversal.back().first;
   endLoc = i <= traits::LEAFSIZE ? i : traits::LEAFSIZE;
   if (!traits::equal(dataPage->keyArray[startLoc],keyValue)) retval = false;
   if (true == retval) {
-    if (startLoc != 0) {
-      for (int i = startLoc; i < endLoc-1; i++) {
-        dataPage->ridArray[i] = dataPage->ridArray[i+1];
-        traits::assign(dataPage->keyArray[i],dataPage->keyArray[i+1]);
-      }
-      if (startLoc == endLoc) {
-        dataPage->ridArray[startLoc].page_number = Page::INVALID_NUMBER;
-        dataPage->ridArray[startLoc].slot_number = Page::INVALID_SLOT;
-        traits::assign(dataPage->keyArray[startLoc], 0);
-      }
+    if (endLoc > traits::LEAFSIZE/2) {
+      this->deleteEntryInLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc, endLoc);
+      this->bufMgr->unPinPage(this->file, dataPageId, true);
     } else {
+      PageId rightSibling = this->getSiblingPage<keyType, traits>(reinterpret_cast<Page*>(dataPage), parentPageId, parentPageOffset, true, true);
+      Page* rightSib;
+      this->bufMgr->readPage(this->file, rightSibling, rightSib);
+      int rightOccupancy = this->getOccupancy<keyType, traits>(rightSib, true);
+      PageId leftSibling = this->getSiblingPage<keyType, traits>(reinterpret_cast<Page*>(dataPage), parentPageId, parentPageOffset, true, false);
+      Page* leftSib;
+      this->bufMgr->readPage(this->file, leftSibling, leftSib);
+      int leftOccupancy = this->getOccupancy<keyType, traits>(leftSib, true);
+      if (rightOccupancy > traits::LEAFSIZE/2) {
+        // rotate leftwards from right page
+        this->bufMgr->unPinPage(this->file, dataPageId, true);
+        this->bufMgr->unPinPage(this->file, leftSibling, true);
+        this->bufMgr->unPinPage(this->file, rightSibling, true);
+        this->bufMgr->unPinPage(this->file, parentPageId, true);
 #ifdef DEBUG
-      assert(0);
+        assert(0);
 #endif
+      } else if (leftOccupancy > traits::LEAFSIZE/2) {
+        this->bufMgr->unPinPage(this->file, dataPageId, true);
+        this->bufMgr->unPinPage(this->file, leftSibling, true);
+        this->bufMgr->unPinPage(this->file, rightSibling, true);
+        this->bufMgr->unPinPage(this->file, parentPageId, true);
+        // rotate rightwards from left page
+#ifdef DEBUG
+        assert(0);
+#endif
+      } else {
+        // merge with left page default, as copying in upper half array is easier
+        this->deleteEntryInLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc, endLoc);
+        leafType* leftPageData = reinterpret_cast<leafType*>(leftSib);
+        leftPageData->rightSibPageNo = rightSibling;
+#ifdef DEBUG
+        assert(leftPageData->ridArray[leftOccupancy].page_number == Page::INVALID_NUMBER);
+#endif
+        for (int i = leftOccupancy,j=0 ; i < traits::LEAFSIZE; i++, j++) {
+          traits::assign(leftPageData->keyArray[i],dataPage->keyArray[j]);
+          leftPageData->ridArray[i] = dataPage->ridArray[j];
+        }
+        int keyOffsetInParent = 0;
+        if (parentPageOffset > 0) {
+          keyOffsetInParent = parentPageOffset-1;
+          Page* parentPage;
+          this->bufMgr->readPage(this->file, parentPageId, parentPage);
+          int parentOccupancy = this->getOccupancy<keyType, traits>(parentPage, false);
+          nonLeafType* parentPageData = reinterpret_cast<nonLeafType*>(parentPage);
+          if (parentPageId == this->rootPageNum || parentOccupancy > traits::NONLEAFSIZE/2) {
+            for (int i = keyOffsetInParent; i < parentOccupancy-1; i++) {
+              traits::assign(parentPageData->keyArray[i],parentPageData->keyArray[i+1]);
+              if (i+2 < traits::NONLEAFSIZE) parentPageData->pageNoArray[i+1] = parentPageData->pageNoArray[i+2];
+            }
+            traits::assign(parentPageData->keyArray[parentOccupancy-1], 0);
+            parentPageData->pageNoArray[parentOccupancy-1] = Page::INVALID_NUMBER;
+            this->bufMgr->unPinPage(this->file, dataPageId, true);
+            this->bufMgr->unPinPage(this->file, leftSibling, true);
+            this->bufMgr->unPinPage(this->file, rightSibling, false);
+            this->bufMgr->unPinPage(this->file, parentPageId, true);
+          } else {
+#ifdef DEBUG
+            assert(0);
+#endif
+          }
+        } else {
+#ifdef DEBUG
+          assert(0);
+#endif
+        }
+      }
     }
   }
-  this->bufMgr->unPinPage(this->file, dataPageId, true);
   return retval;
 }
 

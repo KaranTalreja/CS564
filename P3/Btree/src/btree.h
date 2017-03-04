@@ -1110,6 +1110,9 @@ PageId BTreeIndex::getSiblingPage (Page* currPage, std::vector<std::pair<int,Pag
   if (true == dataPage) {
     if (right == true) return reinterpret_cast<leafType*>(currPage)->rightSibPageNo;
     else {
+#ifdef DEBUG
+      assert(size > 0);
+#endif
       PageId parentPageId = pathOfTraversal.back().second;
       int parentOffset = pathOfTraversal.back().first;
       int depth = size-2;
@@ -1245,20 +1248,28 @@ int BTreeIndex::getOccupancy(Page* currPage, bool dataPage) {
   int retval;
   if (dataPage == true) {
     leafType* dataPage = reinterpret_cast<leafType*>(currPage);
+    retval = traits::LEAFSIZE;
     for (int i = 0; i < traits::LEAFSIZE; i++) {
       if (dataPage->ridArray[i].page_number == Page::INVALID_NUMBER) {
         retval = i;
         break;
       }
     }
+#ifdef DEBUG
+    assert(retval < traits::LEAFSIZE);
+#endif
   } else {
     nonLeafType* nonData = reinterpret_cast<nonLeafType*>(currPage);
-    for (int i = 0; i < traits::NONLEAFSIZE; i++) {
+    retval = traits::NONLEAFSIZE+1;
+    for (int i = 0; i < traits::NONLEAFSIZE+1; i++) {
       if (nonData->pageNoArray[i] == Page::INVALID_NUMBER) {
         retval = i;
         break;
       }
     }
+#ifdef DEBUG
+    assert(retval < traits::NONLEAFSIZE+1);
+#endif
   }
   return retval;
 }
@@ -1266,6 +1277,11 @@ int BTreeIndex::getOccupancy(Page* currPage, bool dataPage) {
 template<typename keyType, typename traits>
 void BTreeIndex::deleteEntryInLeaf(Page* leafPage, int startLoc, int endLoc) {
   typedef typename traits::leafType leafType;
+#ifdef DEBUG
+  assert(endLoc < traits::LEAFSIZE);
+  assert(startLoc >= 0);
+  assert(startLoc <= endLoc);
+#endif
   leafType* dataPage = reinterpret_cast<leafType*>(leafPage);
   for (int i = startLoc; i < endLoc-1; i++) {
     dataPage->ridArray[i] = dataPage->ridArray[i+1];
@@ -1279,6 +1295,11 @@ void BTreeIndex::deleteEntryInLeaf(Page* leafPage, int startLoc, int endLoc) {
 template<typename keyType, typename traits>
 void BTreeIndex::deleteEntryInNonLeaf(Page* nonLeafPage, int startLoc, int endLoc) {
   typedef typename traits::nonLeafType nonLeafType;
+#ifdef DEBUG
+  assert(endLoc < traits::NONLEAFSIZE+1);
+  assert(startLoc >= 0);
+  assert(startLoc <= endLoc);
+#endif
   nonLeafType* parentPageData = reinterpret_cast<nonLeafType*>(nonLeafPage);
   int keyOffsetInParent = startLoc;
   int parentOccupancy = endLoc;
@@ -1286,6 +1307,9 @@ void BTreeIndex::deleteEntryInNonLeaf(Page* nonLeafPage, int startLoc, int endLo
     traits::assign(parentPageData->keyArray[i],parentPageData->keyArray[i+1]);
     if (i+2 < traits::NONLEAFSIZE) parentPageData->pageNoArray[i+1] = parentPageData->pageNoArray[i+2];
   }
+#ifdef DEBUG
+  assert(parentOccupancy-1 >= 0);
+#endif
   traits::assign(parentPageData->keyArray[parentOccupancy-1], 0);
   parentPageData->pageNoArray[parentOccupancy-1] = Page::INVALID_NUMBER;
 }
@@ -1295,29 +1319,55 @@ void BTreeIndex::shiftRightPage (Page* leftSib, Page* page, int startLoc, int en
   typedef typename traits::leafType leafType;
   typedef typename traits::nonLeafType nonLeafType;
   if (dataPage == true) {
+#ifdef DEBUG
+  assert(endLoc < traits::LEAFSIZE);
+  assert(startLoc >= 0);
+  assert(startLoc <= endLoc);
+  assert(leftOccupancy < traits::LEAFSIZE);
+#endif
     leafType* leftPageData = reinterpret_cast<leafType*>(leftSib);
     leafType* dataPage = reinterpret_cast<leafType*>(page);
     if (startLoc > 0) {
+#ifdef DEBUG
+      assert(dataPage->ridArray[endLoc].page_number == Page::INVALID_NUMBER);
+#endif
       for (int i = endLoc; i > 0; i--) {
         traits::assign(dataPage->keyArray[i], dataPage->keyArray[i-1]);
         dataPage->ridArray[i] = dataPage->ridArray[i-1];
       }
       this->deleteEntryInLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc+1, endLoc+1);
     }
+#ifdef DEBUG
+      assert(leftOccupancy-1 >= 0);
+      assert(leftPageData->ridArray[leftOccupancy-1].page_number != Page::INVALID_NUMBER);
+#endif
     traits::assign(dataPage->keyArray[0], leftPageData->keyArray[leftOccupancy-1]);
     dataPage->ridArray[0] = leftPageData->ridArray[leftOccupancy-1];
     traits::assign(leftPageData->keyArray[leftOccupancy-1], 0);
     leftPageData->ridArray[leftOccupancy-1].page_number = Page::INVALID_NUMBER;
     leftPageData->ridArray[leftOccupancy-1].slot_number = Page::INVALID_SLOT;
   } else {
+#ifdef DEBUG
+  assert(endLoc < traits::NONLEAFSIZE+1);
+  assert(startLoc >= 0);
+  assert(startLoc <= endLoc);
+  assert(leftOccupancy < traits::NONLEAFSIZE);
+#endif
     nonLeafType* leftPageData = reinterpret_cast<nonLeafType*>(leftSib);
     nonLeafType* dataPage = reinterpret_cast<nonLeafType*>(page);
     if (startLoc > 0) {
+#ifdef DEBUG
+      assert(dataPage->pageNoArray[endLoc] == Page::INVALID_NUMBER);
+#endif
       for (int i = endLoc; i > 0; i--) {
         if (i-2 >= 0) traits::assign(dataPage->keyArray[i-1], dataPage->keyArray[i-2]);
         dataPage->pageNoArray[i] = dataPage->pageNoArray[i-1];
       }
       this->deleteEntryInNonLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc+1, endLoc+1);
+#ifdef DEBUG
+      assert(leftOccupancy-1 >= 0);
+      assert(leftPageData->pageNoArray[leftOccupancy-1] != Page::INVALID_NUMBER);
+#endif
       dataPage->pageNoArray[0] = leftPageData->pageNoArray[leftOccupancy-1];
       leftPageData->pageNoArray[leftOccupancy-1] = Page::INVALID_NUMBER;
     }
@@ -1329,8 +1379,18 @@ void BTreeIndex::shiftLeftPage (Page* rightSib, Page* page, int startLoc, int en
   typedef typename traits::leafType leafType;
   typedef typename traits::nonLeafType nonLeafType;
   if (dataPage == true) {
+#ifdef DEBUG
+  assert(endLoc < traits::LEAFSIZE);
+  assert(startLoc >= 0);
+  assert(startLoc <= endLoc);
+  assert(rightOccupancy < traits::LEAFSIZE);
+#endif
     leafType* rightPageData = reinterpret_cast<leafType*>(rightSib);
     leafType* dataPage = reinterpret_cast<leafType*>(page);
+#ifdef DEBUG
+    assert(dataPage->ridArray[endLoc].page_number == Page::INVALID_NUMBER);
+    assert(rightPageData->ridArray[0].page_number != Page::INVALID_NUMBER);
+#endif
     traits::assign(dataPage->keyArray[endLoc], rightPageData->keyArray[0]);
     dataPage->ridArray[endLoc] = rightPageData->ridArray[0];
     this->deleteEntryInLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc, endLoc+1);
@@ -1343,6 +1403,12 @@ void BTreeIndex::shiftLeftPage (Page* rightSib, Page* page, int startLoc, int en
     rightPageData->ridArray[rightOccupancy-1].page_number = Page::INVALID_NUMBER;
     rightPageData->ridArray[rightOccupancy-1].slot_number = Page::INVALID_SLOT;
   } else {
+#ifdef DEBUG
+  assert(endLoc < traits::NONLEAFSIZE+1);
+  assert(startLoc >= 0);
+  assert(startLoc <= endLoc);
+  assert(rightOccupancy < traits::NONLEAFSIZE);
+#endif
     nonLeafType* rightPageData = reinterpret_cast<nonLeafType*>(rightSib);
     nonLeafType* dataPage = reinterpret_cast<nonLeafType*>(page);
     this->deleteEntryInNonLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc, endLoc);
@@ -1352,6 +1418,9 @@ void BTreeIndex::shiftLeftPage (Page* rightSib, Page* page, int startLoc, int en
       traits::assign(rightPageData->keyArray[i], rightPageData->keyArray[i+1]);
       rightPageData->pageNoArray[i] = rightPageData->pageNoArray[i+1];
     }
+#ifdef DEBUG
+    assert(rightOccupancy-2 >= 0);
+#endif
     traits::assign(rightPageData->keyArray[rightOccupancy-2], 0);
     rightPageData->pageNoArray[rightOccupancy-1] = Page::INVALID_NUMBER;
   }
@@ -1441,6 +1510,10 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
       startLoc = i;
     }
   }
+#ifdef DEBUG
+  assert(pathOfTraversal.size());
+  assert(startLoc < traits::LEAFSIZE);
+#endif
   PageId parentPageId = pathOfTraversal.back().second;
   int parentPageOffset = pathOfTraversal.back().first;
   endLoc = i <= traits::LEAFSIZE ? i : traits::LEAFSIZE;
@@ -1463,6 +1536,11 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
         Page* parentPage;
         this->bufMgr->readPage(this->file, parentPageId, parentPage);
         nonLeafType* parentPageData = reinterpret_cast<nonLeafType*>(parentPage);
+#ifdef DEBUG
+        assert(parentPageOffset >= 0);
+        assert(parentPageOffset < traits::LEAFSIZE);
+        assert(parentPageData->pageNoArray[parentPageOffset+1] == Page::INVALID_NUMBER);
+#endif
         traits::assign(parentPageData->keyArray[parentPageOffset], reinterpret_cast<leafType*>(rightSib)->keyArray[0]);
         
         this->bufMgr->unPinPage(this->file, dataPageId, true);
@@ -1477,6 +1555,10 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
         Page* parentPage;
         this->bufMgr->readPage(this->file, parentPageId, parentPage);
         nonLeafType* parentPageData = reinterpret_cast<nonLeafType*>(parentPage);
+#ifdef DEBUG
+        assert(parentPageOffset-1 >= 0);
+        assert(parentPageOffset-1 < traits::LEAFSIZE);
+#endif
         traits::assign(parentPageData->keyArray[parentPageOffset-1], dataPage->keyArray[0]);
 
         this->bufMgr->unPinPage(this->file, dataPageId, true);
@@ -1530,7 +1612,7 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
                 this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
                 nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
                 nonLeafType* rightPageData = reinterpret_cast<nonLeafType*>(pRightSib);
-                keyType rightPageFirstKey;
+                keyType rightPageFirstKey = keyType(0);
                 traits::assign(rightPageFirstKey, rightPageData->keyArray[0]);
                 this->shiftLeftPage<keyType, traits>(pRightSib, parentPage, keyOffsetInParent, parentOccupancy, pRightOccupancy, false);
                 parentParentPageOffset = parentParentPageOffset ? parentParentPageOffset - 1 : 0;

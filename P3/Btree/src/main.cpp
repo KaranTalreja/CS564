@@ -164,7 +164,7 @@ int main(int argc, char **argv)
 	test2();
 	test3();
 	errorTests();
-	test4();
+	//test4();
 
 	delete bufMgr;
 	return 0;

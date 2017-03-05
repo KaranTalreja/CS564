@@ -1103,8 +1103,10 @@ const void BTreeIndex::insertKeyTemplate(const void* key, const RecordId rid) {
     std::cout << "DBG: Key " << keyValue << " inserted on page " << dataPageNum << " at offset " << insertAt << ":" << endOfRecordsOffset << std::endl;
 #endif
 #ifdef DEBUG
+  if (this->attributeType != STRING) {
     bool rc = this->isStructureValid<keyType,traits>();
     assert(true == rc);
+  }
 #endif
   }
 }
@@ -1505,7 +1507,7 @@ bool BTreeIndex::isStructureValid() {
   // for max = true
   std::pair<typename std::pair<PageId,keyType>, bool> minOrMaxConstraint;
   minOrMaxConstraint.first.first = this->rootPageNum;
-  minOrMaxConstraint.first.second = currData->keyArray[0];
+  traits::assign(minOrMaxConstraint.first.second,currData->keyArray[0]);
   minOrMaxConstraint.second = true;
   queue[depth%2].push_back(minOrMaxConstraint);
   int maxDepth = currData->level;
@@ -1516,7 +1518,7 @@ bool BTreeIndex::isStructureValid() {
       this->bufMgr->readPage(this->file, queue[depth%2].back().first.first, page);
       currData = reinterpret_cast<nonLeafType*>(page);
       minOrMaxConstraint.first.first = currData->pageNoArray[0];
-      minOrMaxConstraint.first.second = currData->keyArray[0];
+      traits::assign(minOrMaxConstraint.first.second,currData->keyArray[0]);
       minOrMaxConstraint.second = true;
       queue[(depth+1)%2].push_back(minOrMaxConstraint);
       for (int i = 0; i < traits::NONLEAFSIZE; i++) {
@@ -1524,7 +1526,7 @@ bool BTreeIndex::isStructureValid() {
           assert(currData->level <= maxDepth);
           assert(traits::less(currData->keyArray[i], currData->keyArray[i+1]));
           minOrMaxConstraint.first.first = currData->pageNoArray[i+1];
-          minOrMaxConstraint.first.second = currData->keyArray[i];
+          traits::assign(minOrMaxConstraint.first.second, currData->keyArray[i]);
           minOrMaxConstraint.second = false;
           queue[(depth+1)%2].push_back(minOrMaxConstraint);
           if (this->rootPageNum != queue[depth%2].back().first.first) {
@@ -1538,10 +1540,10 @@ bool BTreeIndex::isStructureValid() {
           }
         } else { 
           minOrMaxConstraint.first.first = currData->pageNoArray[i+1];
-          minOrMaxConstraint.first.second = currData->keyArray[i];
+          traits::assign(minOrMaxConstraint.first.second, currData->keyArray[i]);
           minOrMaxConstraint.second = false;
           queue[(depth+1)%2].push_back(minOrMaxConstraint);
-          assert(i+1 >= traits::NONLEAFSIZE || currData->keyArray[i+1] == 0);
+          assert(i+1 >= traits::NONLEAFSIZE || traits::equal(currData->keyArray[i+1],0));
           if (this->rootPageNum != queue[depth%2].back().first.first) {
             minOrMaxConstraint = queue[depth%2].back();
             bool checkMax = minOrMaxConstraint.second;
@@ -2233,8 +2235,10 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
   this->bufMgr->flushFile(this->file);
 #endif
 #ifdef DEBUG
+  if (this->attributeType != STRING) {
     bool rc = this->isStructureValid<keyType,traits>();
     assert(true == rc);
+  }
 #endif
     return retval;
 }

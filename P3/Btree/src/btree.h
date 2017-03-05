@@ -531,6 +531,9 @@ private:
 
   template<typename keyType, typename traits>
   void shiftLeftPage (Page* rightSib, Page* page, int startLoc, int endLoc, int rightOccupancy, bool dataPage);
+
+  template<typename keyType, typename traits>
+  bool isStructureValid();
 };
 
 // This is the structure for tuples in the base relation
@@ -1099,6 +1102,10 @@ const void BTreeIndex::insertKeyTemplate(const void* key, const RecordId rid) {
 #ifdef DEBUG
     std::cout << "DBG: Key " << keyValue << " inserted on page " << dataPageNum << " at offset " << insertAt << ":" << endOfRecordsOffset << std::endl;
 #endif
+#ifdef DEBUG
+    bool rc = this->isStructureValid<keyType,traits>();
+    assert(true == rc);
+#endif
   }
 }
 
@@ -1115,125 +1122,155 @@ PageId BTreeIndex::getSiblingPage (Page* currPage, std::vector<std::pair<int,Pag
 #endif
       PageId parentPageId = pathOfTraversal.back().second;
       int parentOffset = pathOfTraversal.back().first;
-      int depth = size-2;
-      while (parentOffset == 0 && depth >= 0) {
-        parentOffset = pathOfTraversal[depth].first;
-        parentPageId = pathOfTraversal[depth].second;
-        depth--;
-        if (!(parentOffset == 0 && depth >=0)) {
-          depth+=1;
-          break;
-        }
-      }
-
-      if (parentOffset > 0) {
+      Page* parentPage;
+      if (parentOffset >= 1) {
+        this->bufMgr->readPage(this->file, parentPageId, parentPage);
+        nonLeafType* parentData = reinterpret_cast<nonLeafType*>(parentPage);
+        int retval =  parentData->pageNoArray[parentOffset-1];
+        this->bufMgr->unPinPage(this->file, parentPageId, true);
+        return retval;
+      } else if (parentPageId == this->rootPageNum) return Page::INVALID_NUMBER;
+      else {
+        int depth = 2;
+        int offset;
         PageId retval = Page::INVALID_NUMBER;
-        Page* parentPage;
-        while (depth < size-1) {
+        do {
+          parentPageId = pathOfTraversal[size-depth].second;
+          parentOffset = pathOfTraversal[size-depth].first;
+          depth++;
+          if (parentOffset >= 1) {
+            this->bufMgr->readPage(this->file, parentPageId, parentPage);
+            nonLeafType* parentData = reinterpret_cast<nonLeafType*>(parentPage);
+            retval = parentData->pageNoArray[parentOffset-1];
+            this->bufMgr->unPinPage(this->file, parentPageId, true);
+            offset = size-depth+1;
+            break;
+          }
+        } while ((size-depth >= 0) && pathOfTraversal[size-depth].second != this->rootPageNum);
+        if (retval != Page::INVALID_NUMBER || pathOfTraversal[size-depth+1].first >= 1) {
+          parentPageId = pathOfTraversal[offset].second;
+          parentOffset = pathOfTraversal[offset].first;
           this->bufMgr->readPage(this->file, parentPageId, parentPage);
           nonLeafType* parentData = reinterpret_cast<nonLeafType*>(parentPage);
-          if (parentOffset != -1) retval = parentData->pageNoArray[parentOffset-1];
-          else retval = parentData->pageNoArray[this->getOccupancy<keyType, traits>(parentPage, false)-1];
-          this->bufMgr->unPinPage(this->file, parentPageId, false);
-          parentPageId = retval;
-          parentOffset = -1;
-          depth++;
-        }
-        return retval;
+          this->bufMgr->unPinPage(this->file, parentPageId, true);
+          parentPageId = parentData->pageNoArray[parentOffset-1];
+          while (depth > 2) {
+            this->bufMgr->readPage(this->file, parentPageId, parentPage);
+            nonLeafType* parentData = reinterpret_cast<nonLeafType*>(parentPage);
+            retval = parentData->pageNoArray[this->getOccupancy<keyType, traits>(parentPage, false)-1];
+            this->bufMgr->unPinPage(this->file, parentPageId, true);
+            parentPageId = retval;
+            depth--;
+          }
+          return retval;
+        } else return Page::INVALID_NUMBER;
       }
-      if (parentPageId == this->rootPageNum) return Page::INVALID_NUMBER;
 #ifdef DEBUG
       assert(0);
 #endif
     }
   } else {
     if (right == false) {
-      int depth = size -1;
-      int originalDepth;
-      while (depth >= 0) {
-        if (pathOfTraversal[depth].second == parentPageId) {
-          originalDepth = depth;
-          depth--;
-          break;
-        }
-        depth--;
-      }
-#ifdef DEBUG
-      assert (depth >= 0);
-#endif
-      int parentOffset = pathOfTraversal[depth].first;
-      parentPageId = pathOfTraversal[depth].second;
-      while (parentOffset == 0 && depth >= 0) {
-        parentOffset = pathOfTraversal[depth].first;
-        parentPageId = pathOfTraversal[depth].second;
-        depth--;
-        if (!(parentOffset == 0 && depth >=0)) {
-          depth+=1;
-          break;
-        }
-      }
-
-      if (parentOffset > 0) {
+      PageId parentPageId = pathOfTraversal[size-2].second;
+      int parentOffset = pathOfTraversal[size-2].first;
+      Page* parentPage;
+      if (parentOffset >= 1) {
+        this->bufMgr->readPage(this->file, parentPageId, parentPage);
+        nonLeafType* parentData = reinterpret_cast<nonLeafType*>(parentPage);
+        int retval =  parentData->pageNoArray[parentOffset-1];
+        this->bufMgr->unPinPage(this->file, parentPageId, true);
+        return retval;
+      } else if (parentPageId == this->rootPageNum) return Page::INVALID_NUMBER;
+      else {
+        int depth = 2;
+        int offset = -1;
         PageId retval = Page::INVALID_NUMBER;
-        Page* parentPage;
-        while (depth < originalDepth) {
+        do {
+          parentPageId = pathOfTraversal[size-depth].second;
+          parentOffset = pathOfTraversal[size-depth].first;
+          depth++;
+          if (parentOffset >= 1) {
+            this->bufMgr->readPage(this->file, parentPageId, parentPage);
+            nonLeafType* parentData = reinterpret_cast<nonLeafType*>(parentPage);
+            retval = parentData->pageNoArray[parentOffset-1];
+            this->bufMgr->unPinPage(this->file, parentPageId, true);
+            offset = size-depth+1;
+            break;
+          }
+        } while ((size-depth >= 0) && pathOfTraversal[size-depth].second != this->rootPageNum);
+        if (offset == -1) offset = 0;
+        if (retval != Page::INVALID_NUMBER || pathOfTraversal[size-depth].first >= 1) {
+          parentPageId = pathOfTraversal[offset].second;
+          parentOffset = pathOfTraversal[offset].first;
           this->bufMgr->readPage(this->file, parentPageId, parentPage);
           nonLeafType* parentData = reinterpret_cast<nonLeafType*>(parentPage);
-          if (parentOffset != -1) retval = parentData->pageNoArray[parentOffset-1];
-          else retval = parentData->pageNoArray[this->getOccupancy<keyType, traits>(parentPage, false)-1];
-          this->bufMgr->unPinPage(this->file, parentPageId, false);
-          parentPageId = retval;
-          parentOffset = -1;
-          depth++;
-        }
-        return retval;
+          this->bufMgr->unPinPage(this->file, parentPageId, true);
+          parentPageId = parentData->pageNoArray[parentOffset-1];
+          while (depth > 2) {
+            this->bufMgr->readPage(this->file, parentPageId, parentPage);
+            nonLeafType* parentData = reinterpret_cast<nonLeafType*>(parentPage);
+            retval = parentData->pageNoArray[this->getOccupancy<keyType, traits>(parentPage, false)-1];
+            this->bufMgr->unPinPage(this->file, parentPageId, true);
+            parentPageId = retval;
+            depth--;
+          }
+          return retval;
+        } else return Page::INVALID_NUMBER;
       }
-      if (parentPageId == this->rootPageNum) return Page::INVALID_NUMBER;
 #ifdef DEBUG
       assert(0);
 #endif
     } else {
-      int depth = size -1;
-      int originalDepth;
-      while (depth >= 0) {
-        if (pathOfTraversal[depth].second == parentPageId) {
-          originalDepth = depth;
-          depth--;
-          break;
-        }
-        depth--;
-      }
+
 #ifdef DEBUG
-      assert (depth >= 0);
+      assert(size > 0);
 #endif
-      int parentOffset = pathOfTraversal[depth].first;
-      parentPageId = pathOfTraversal[depth].second;
-      while (parentOffset == 0 && depth >= 0) {
-        parentOffset = pathOfTraversal[depth].first;
-        parentPageId = pathOfTraversal[depth].second;
-        depth--;
-        if (!(parentOffset == 0 && depth >=0)) {
-          depth+=1;
-          break;
-        }
-      }
-      if (parentOffset < traits::NONLEAFSIZE-1) {
+      PageId parentPageId = pathOfTraversal[size-2].second;
+      int parentOffset = pathOfTraversal[size-2].first;
+      Page* parentPage;
+      if (parentOffset < traits::NONLEAFSIZE) {
+        this->bufMgr->readPage(this->file, parentPageId, parentPage);
+        nonLeafType* parentData = reinterpret_cast<nonLeafType*>(parentPage);
+        int retval =  parentData->pageNoArray[parentOffset+1];
+        this->bufMgr->unPinPage(this->file, parentPageId, true);
+        return retval;
+      } else if (parentPageId == this->rootPageNum) return Page::INVALID_NUMBER;
+      else {
+        int depth = 2;
+        int offset=-1;
         PageId retval = Page::INVALID_NUMBER;
-        Page* parentPage;
-        while (depth < originalDepth) {
-          if (parentPageId == Page::INVALID_NUMBER) return parentPageId;
+        do {
+          parentPageId = pathOfTraversal[size-depth].second;
+          parentOffset = pathOfTraversal[size-depth].first;
+          depth++;
+          if (parentOffset < traits::NONLEAFSIZE) {
+            this->bufMgr->readPage(this->file, parentPageId, parentPage);
+            nonLeafType* parentData = reinterpret_cast<nonLeafType*>(parentPage);
+            retval = parentData->pageNoArray[parentOffset+1];
+            this->bufMgr->unPinPage(this->file, parentPageId, true);
+            offset = size-depth+1;
+            break;
+          }
+        } while ((size-depth >= 0) && pathOfTraversal[size-depth].second != this->rootPageNum);
+        if (offset == -1) offset = 0;
+        if (retval != Page::INVALID_NUMBER || pathOfTraversal[size-depth].first < traits::NONLEAFSIZE) {
+          parentPageId = pathOfTraversal[offset].second;
+          parentOffset = pathOfTraversal[offset].first;
           this->bufMgr->readPage(this->file, parentPageId, parentPage);
           nonLeafType* parentData = reinterpret_cast<nonLeafType*>(parentPage);
-          if (parentOffset != -1) retval = parentData->pageNoArray[parentOffset+1];
-          else retval = parentData->pageNoArray[0];
-          this->bufMgr->unPinPage(this->file, parentPageId, false);
-          parentPageId = retval;
-          parentOffset = -1;
-          depth++;
-        }
-        return retval;
+          this->bufMgr->unPinPage(this->file, parentPageId, true);
+          parentPageId = parentData->pageNoArray[parentOffset+1];
+          while (depth > 2) {
+            this->bufMgr->readPage(this->file, parentPageId, parentPage);
+            nonLeafType* parentData = reinterpret_cast<nonLeafType*>(parentPage);
+            retval = parentData->pageNoArray[0];
+            this->bufMgr->unPinPage(this->file, parentPageId, true);
+            parentPageId = retval;
+            depth--;
+          }
+          return retval;
+        } else return Page::INVALID_NUMBER;
       }
-      if (parentPageId == this->rootPageNum) return Page::INVALID_NUMBER;
 #ifdef DEBUG
       assert(0);
 #endif
@@ -1256,7 +1293,7 @@ int BTreeIndex::getOccupancy(Page* currPage, bool dataPage) {
       }
     }
 #ifdef DEBUG
-    assert(retval < traits::LEAFSIZE);
+    assert(retval <= traits::LEAFSIZE);
 #endif
   } else {
     nonLeafType* nonData = reinterpret_cast<nonLeafType*>(currPage);
@@ -1268,7 +1305,7 @@ int BTreeIndex::getOccupancy(Page* currPage, bool dataPage) {
       }
     }
 #ifdef DEBUG
-    assert(retval < traits::NONLEAFSIZE+1);
+    assert(retval <= traits::NONLEAFSIZE+1);
 #endif
   }
   return retval;
@@ -1278,7 +1315,7 @@ template<typename keyType, typename traits>
 void BTreeIndex::deleteEntryInLeaf(Page* leafPage, int startLoc, int endLoc) {
   typedef typename traits::leafType leafType;
 #ifdef DEBUG
-  assert(endLoc < traits::LEAFSIZE);
+  assert(endLoc <= traits::LEAFSIZE);
   assert(startLoc >= 0);
   assert(startLoc <= endLoc);
 #endif
@@ -1296,21 +1333,28 @@ template<typename keyType, typename traits>
 void BTreeIndex::deleteEntryInNonLeaf(Page* nonLeafPage, int startLoc, int endLoc) {
   typedef typename traits::nonLeafType nonLeafType;
 #ifdef DEBUG
-  assert(endLoc < traits::NONLEAFSIZE+1);
+  assert(endLoc <= traits::NONLEAFSIZE+1);
   assert(startLoc >= 0);
   assert(startLoc <= endLoc);
 #endif
   nonLeafType* parentPageData = reinterpret_cast<nonLeafType*>(nonLeafPage);
-  int keyOffsetInParent = startLoc;
+  int pageOffsetInParent = startLoc;
   int parentOccupancy = endLoc;
-  for (int i = keyOffsetInParent; i < parentOccupancy-1; i++) {
-    traits::assign(parentPageData->keyArray[i],parentPageData->keyArray[i+1]);
-    if (i+2 < traits::NONLEAFSIZE) parentPageData->pageNoArray[i+1] = parentPageData->pageNoArray[i+2];
+  if (pageOffsetInParent > 0) {
+    for (int i = pageOffsetInParent; i < parentOccupancy-1; i++) {
+      traits::assign(parentPageData->keyArray[i-1],parentPageData->keyArray[i]);
+      if (i+1 <= traits::NONLEAFSIZE) parentPageData->pageNoArray[i] = parentPageData->pageNoArray[i+1];
+    }
+  } else if (pageOffsetInParent == 0) {
+    for (int i = 0; i < parentOccupancy-1; i++) {
+      if (i+1 <= parentOccupancy-2) traits::assign(parentPageData->keyArray[i],parentPageData->keyArray[i+1]);
+      parentPageData->pageNoArray[i] = parentPageData->pageNoArray[i+1];
+    }
   }
 #ifdef DEBUG
   assert(parentOccupancy-1 >= 0);
 #endif
-  traits::assign(parentPageData->keyArray[parentOccupancy-1], 0);
+  traits::assign(parentPageData->keyArray[parentOccupancy-2], 0);
   parentPageData->pageNoArray[parentOccupancy-1] = Page::INVALID_NUMBER;
 }
 
@@ -1327,7 +1371,7 @@ void BTreeIndex::shiftRightPage (Page* leftSib, Page* page, int startLoc, int en
 #endif
     leafType* leftPageData = reinterpret_cast<leafType*>(leftSib);
     leafType* dataPage = reinterpret_cast<leafType*>(page);
-    if (startLoc > 0) {
+    if (startLoc >= 0) {
 #ifdef DEBUG
       assert(dataPage->ridArray[endLoc].page_number == Page::INVALID_NUMBER);
 #endif
@@ -1351,11 +1395,11 @@ void BTreeIndex::shiftRightPage (Page* leftSib, Page* page, int startLoc, int en
   assert(endLoc < traits::NONLEAFSIZE+1);
   assert(startLoc >= 0);
   assert(startLoc <= endLoc);
-  assert(leftOccupancy < traits::NONLEAFSIZE);
+  assert(leftOccupancy < traits::NONLEAFSIZE+1);
 #endif
     nonLeafType* leftPageData = reinterpret_cast<nonLeafType*>(leftSib);
     nonLeafType* dataPage = reinterpret_cast<nonLeafType*>(page);
-    if (startLoc > 0) {
+    if (startLoc >= 0) {
 #ifdef DEBUG
       assert(dataPage->pageNoArray[endLoc] == Page::INVALID_NUMBER);
 #endif
@@ -1383,7 +1427,7 @@ void BTreeIndex::shiftLeftPage (Page* rightSib, Page* page, int startLoc, int en
   assert(endLoc < traits::LEAFSIZE);
   assert(startLoc >= 0);
   assert(startLoc <= endLoc);
-  assert(rightOccupancy < traits::LEAFSIZE);
+  assert(rightOccupancy <= traits::LEAFSIZE);
 #endif
     leafType* rightPageData = reinterpret_cast<leafType*>(rightSib);
     leafType* dataPage = reinterpret_cast<leafType*>(page);
@@ -1399,6 +1443,9 @@ void BTreeIndex::shiftLeftPage (Page* rightSib, Page* page, int startLoc, int en
       traits::assign(rightPageData->keyArray[i], rightPageData->keyArray[i+1]);
       rightPageData->ridArray[i] = rightPageData->ridArray[i+1];
     }
+#ifdef DEBUG
+    assert(traits::equal(rightPageData->keyArray[rightOccupancy-1], rightPageData->keyArray[rightOccupancy-2]));
+#endif
     traits::assign(rightPageData->keyArray[rightOccupancy-1], 0);
     rightPageData->ridArray[rightOccupancy-1].page_number = Page::INVALID_NUMBER;
     rightPageData->ridArray[rightOccupancy-1].slot_number = Page::INVALID_SLOT;
@@ -1407,19 +1454,23 @@ void BTreeIndex::shiftLeftPage (Page* rightSib, Page* page, int startLoc, int en
   assert(endLoc < traits::NONLEAFSIZE+1);
   assert(startLoc >= 0);
   assert(startLoc <= endLoc);
-  assert(rightOccupancy < traits::NONLEAFSIZE);
+  assert(rightOccupancy < traits::NONLEAFSIZE+1);
 #endif
     nonLeafType* rightPageData = reinterpret_cast<nonLeafType*>(rightSib);
     nonLeafType* dataPage = reinterpret_cast<nonLeafType*>(page);
     this->deleteEntryInNonLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc, endLoc);
     
     dataPage->pageNoArray[endLoc-1] = rightPageData->pageNoArray[0];
-    for (int i = 0; i < rightOccupancy-1; i++) {
+    int i = 0;
+    for (i = 0; i < rightOccupancy-2; i++) {
       traits::assign(rightPageData->keyArray[i], rightPageData->keyArray[i+1]);
       rightPageData->pageNoArray[i] = rightPageData->pageNoArray[i+1];
     }
+    rightPageData->pageNoArray[i] = rightPageData->pageNoArray[i+1];
 #ifdef DEBUG
     assert(rightOccupancy-2 >= 0);
+    assert(traits::equal(rightPageData->keyArray[rightOccupancy-3], rightPageData->keyArray[rightOccupancy-2]));
+    assert(rightPageData->pageNoArray[rightOccupancy-2] == rightPageData->pageNoArray[rightOccupancy-1]);
 #endif
     traits::assign(rightPageData->keyArray[rightOccupancy-2], 0);
     rightPageData->pageNoArray[rightOccupancy-1] = Page::INVALID_NUMBER;
@@ -1439,6 +1490,93 @@ void BTreeIndex::getLeftRightSiblingOccupancy (Page* currPage, PageId& leftSibli
     this->bufMgr->readPage(this->file, rightSibling, rightSib);
     rightOccupancy = this->getOccupancy<keyType, traits>(rightSib, dataPage);
   }
+}
+
+template<typename keyType, typename traits>
+bool BTreeIndex::isStructureValid() {
+  typedef typename traits::nonLeafType nonLeafType;
+  typedef typename traits::leafType leafType;
+  std::vector< typename std::pair< typename std::pair<PageId,keyType>, bool> > queue[2];
+  Page* page;
+  int depth = 1;
+  nonLeafType* currData; 
+  this->bufMgr->readPage(this->file, this->rootPageNum, page);
+  currData = reinterpret_cast<nonLeafType*>(page);
+  // for max = true
+  std::pair<typename std::pair<PageId,keyType>, bool> minOrMaxConstraint;
+  minOrMaxConstraint.first.first = this->rootPageNum;
+  minOrMaxConstraint.first.second = currData->keyArray[0];
+  minOrMaxConstraint.second = true;
+  queue[depth%2].push_back(minOrMaxConstraint);
+  int maxDepth = currData->level;
+  this->bufMgr->unPinPage(this->file, this->rootPageNum, true);
+  while (depth < maxDepth) {
+    while (!queue[depth%2].empty())
+    {
+      this->bufMgr->readPage(this->file, queue[depth%2].back().first.first, page);
+      currData = reinterpret_cast<nonLeafType*>(page);
+      minOrMaxConstraint.first.first = currData->pageNoArray[0];
+      minOrMaxConstraint.first.second = currData->keyArray[0];
+      minOrMaxConstraint.second = true;
+      queue[(depth+1)%2].push_back(minOrMaxConstraint);
+      for (int i = 0; i < traits::NONLEAFSIZE; i++) {
+        if (!(i+2 > traits::NONLEAFSIZE || currData->pageNoArray[i+2] == Page::INVALID_NUMBER)) {
+          assert(currData->level <= maxDepth);
+          assert(traits::less(currData->keyArray[i], currData->keyArray[i+1]));
+          minOrMaxConstraint.first.first = currData->pageNoArray[i+1];
+          minOrMaxConstraint.first.second = currData->keyArray[i];
+          minOrMaxConstraint.second = false;
+          queue[(depth+1)%2].push_back(minOrMaxConstraint);
+          if (this->rootPageNum != queue[depth%2].back().first.first) {
+            minOrMaxConstraint = queue[depth%2].back();
+            bool checkMax = minOrMaxConstraint.second;
+            if (true == checkMax) {
+              assert(traits::lessE(currData->keyArray[i],minOrMaxConstraint.first.second));
+            } else {
+              assert(traits::greatE(currData->keyArray[i],minOrMaxConstraint.first.second));
+            }
+          }
+        } else { 
+          minOrMaxConstraint.first.first = currData->pageNoArray[i+1];
+          minOrMaxConstraint.first.second = currData->keyArray[i];
+          minOrMaxConstraint.second = false;
+          queue[(depth+1)%2].push_back(minOrMaxConstraint);
+          assert(i+1 >= traits::NONLEAFSIZE || currData->keyArray[i+1] == 0);
+          if (this->rootPageNum != queue[depth%2].back().first.first) {
+            minOrMaxConstraint = queue[depth%2].back();
+            bool checkMax = minOrMaxConstraint.second;
+            if (true == checkMax) {
+              assert(traits::lessE(currData->keyArray[i],minOrMaxConstraint.first.second));
+            } else {
+              assert(traits::greatE(currData->keyArray[i],minOrMaxConstraint.first.second));
+            }
+          }
+          break;
+        }
+      }
+      this->bufMgr->unPinPage(this->file, queue[depth%2].back().first.first, true);
+      queue[depth%2].pop_back();
+    }
+    depth++;
+  }
+  while (!queue[depth%2].empty()) {
+    this->bufMgr->readPage(this->file, queue[depth%2].back().first.first, page);
+    leafType* data = reinterpret_cast<leafType*>(page);
+    for (int i = 1; i < traits::LEAFSIZE; i++) {
+      if (data->ridArray[i].page_number == Page::INVALID_NUMBER) break;
+      assert(traits::greatE(data->keyArray[i],data->keyArray[i-1]));
+      minOrMaxConstraint = queue[depth%2].back();
+      bool checkMax = minOrMaxConstraint.second;
+      if (true == checkMax) {
+        assert(traits::lessE(data->keyArray[i-1],minOrMaxConstraint.first.second));
+      } else {
+        assert(traits::greatE(data->keyArray[i-1],minOrMaxConstraint.first.second));
+      }
+    }
+    this->bufMgr->unPinPage(this->file, queue[depth%2].back().first.first, true);
+    queue[depth%2].pop_back();
+  }
+  return true;
 }
 
 template<typename keyType, typename traits>
@@ -1524,328 +1662,581 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
       this->bufMgr->unPinPage(this->file, dataPageId, true);
       std::cout << "normal operation." << std::endl;
     } else {
-      PageId rightSibling, leftSibling; 
-      Page* rightSib, *leftSib;
-      int rightOccupancy = -1, leftOccupancy = -1;
-      this->getLeftRightSiblingOccupancy<keyType, traits> (reinterpret_cast<Page*>(dataPage), leftSibling, leftSib, leftOccupancy,
-        rightSibling, rightSib, rightOccupancy, pathOfTraversal, true, Page::INVALID_NUMBER);
-      if (rightOccupancy > traits::LEAFSIZE/2) {
-        // rotate leftwards from right page
-        this->shiftLeftPage<keyType, traits>(rightSib, reinterpret_cast<Page*>(dataPage), startLoc, endLoc, rightOccupancy, true);
-        
-        Page* parentPage;
-        this->bufMgr->readPage(this->file, parentPageId, parentPage);
-        nonLeafType* parentPageData = reinterpret_cast<nonLeafType*>(parentPage);
-#ifdef DEBUG
-        assert(parentPageOffset >= 0);
-        assert(parentPageOffset < traits::NONLEAFSIZE);
-#endif
-        traits::assign(parentPageData->keyArray[parentPageOffset], reinterpret_cast<leafType*>(rightSib)->keyArray[0]);
-        
-        this->bufMgr->unPinPage(this->file, dataPageId, true);
-        if (-1 != leftOccupancy) this->bufMgr->unPinPage(this->file, leftSibling, false);
-        if (-1 != rightOccupancy) this->bufMgr->unPinPage(this->file, rightSibling, true);
-        this->bufMgr->unPinPage(this->file, parentPageId, true);
-        std::cout << "rotating leftwards from right page." << std::endl;
-      } else if (leftOccupancy > traits::LEAFSIZE/2) {
-        // rotate rightwards from left page
-        this->shiftRightPage<keyType, traits>(leftSib, reinterpret_cast<Page*>(dataPage), startLoc, endLoc, leftOccupancy, true);
+      this->bufMgr->readPage(this->file, this->rootPageNum, rootPage);
+      rootData = reinterpret_cast<nonLeafType*>(rootPage);
+      int rootOccupancy = this->getOccupancy<keyType, traits>(rootPage, false);
+      if (rootData->level > 2 || rootOccupancy > 2) {
+        this->bufMgr->unPinPage(this->file, this->rootPageNum, true);
+        PageId rightSibling, leftSibling; 
+        Page* rightSib, *leftSib;
+        int rightOccupancy = -1, leftOccupancy = -1;
+        this->getLeftRightSiblingOccupancy<keyType, traits> (reinterpret_cast<Page*>(dataPage), leftSibling, leftSib, leftOccupancy,
+            rightSibling, rightSib, rightOccupancy, pathOfTraversal, true, Page::INVALID_NUMBER);
+        if (rightOccupancy > traits::LEAFSIZE/2) {
+          // rotate leftwards from right page
+          this->shiftLeftPage<keyType, traits>(rightSib, reinterpret_cast<Page*>(dataPage), startLoc, endLoc, rightOccupancy, true);
 
-        Page* parentPage;
-        this->bufMgr->readPage(this->file, parentPageId, parentPage);
-        nonLeafType* parentPageData = reinterpret_cast<nonLeafType*>(parentPage);
-#ifdef DEBUG
-        assert(parentPageOffset-1 >= 0);
-        assert(parentPageOffset-1 < traits::NONLEAFSIZE);
-#endif
-        traits::assign(parentPageData->keyArray[parentPageOffset-1], dataPage->keyArray[0]);
-
-        this->bufMgr->unPinPage(this->file, dataPageId, true);
-        if(-1 != leftOccupancy) this->bufMgr->unPinPage(this->file, leftSibling, true);
-        if (-1 != rightOccupancy) this->bufMgr->unPinPage(this->file, rightSibling, false);
-        this->bufMgr->unPinPage(this->file, parentPageId, true);
-        std::cout << "rotating rightwards from left page." << std::endl;
-      } else if (leftOccupancy != -1) {
-        std::cout << "merging with left page." << std::endl;
-        // merge with left page default, as copying in upper half array is easier
-        this->deleteEntryInLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc, endLoc);
-        leafType* leftPageData = reinterpret_cast<leafType*>(leftSib);
-        leftPageData->rightSibPageNo = rightSibling;
-#ifdef DEBUG
-        assert(leftPageData->ridArray[leftOccupancy].page_number == Page::INVALID_NUMBER);
-#endif
-        for (int i = leftOccupancy,j=0 ; i < traits::LEAFSIZE; i++, j++) {
-          traits::assign(leftPageData->keyArray[i],dataPage->keyArray[j]);
-          leftPageData->ridArray[i] = dataPage->ridArray[j];
-        }
-        this->bufMgr->unPinPage(this->file, dataPageId, true);
-        bool rotated = false;
-        while (pathOfTraversal.size() >= 1) {
-          parentPageOffset = pathOfTraversal.back().first;
-          parentPageId = pathOfTraversal.back().second;
-          int keyOffsetInParent = (parentPageOffset-1>=0) ? parentPageOffset-1 : 0;
           Page* parentPage;
           this->bufMgr->readPage(this->file, parentPageId, parentPage);
-          int parentOccupancy = this->getOccupancy<keyType, traits>(parentPage, false);
           nonLeafType* parentPageData = reinterpret_cast<nonLeafType*>(parentPage);
-          if (parentPageId == this->rootPageNum || parentOccupancy > traits::NONLEAFSIZE/2) {
-            this->deleteEntryInNonLeaf<keyType, traits> (parentPage, keyOffsetInParent, parentOccupancy);
-            if (parentOccupancy - 1 == 1) traits::assign(parentPageData->keyArray[0], keyValue);
-            this->bufMgr->unPinPage(this->file, leftSibling, true);
-            if (rightOccupancy != -1) this->bufMgr->unPinPage(this->file, rightSibling, false);
-            this->bufMgr->unPinPage(this->file, parentPageId, true);
-            break;
-          } else {
-            PageId pRightSibling, pLeftSibling; 
-            Page* pRightSib, *pLeftSib;
-            int pRightOccupancy = -1, pLeftOccupancy = -1;
-            this->getLeftRightSiblingOccupancy<keyType, traits> (parentPage, pLeftSibling, pLeftSib, pLeftOccupancy,
-                pRightSibling, pRightSib, pRightOccupancy, pathOfTraversal, false, parentPageId);
-            if (pRightOccupancy > traits::NONLEAFSIZE/2) {
-              rotated = true;
-              pathOfTraversal.pop_back();
-              if (!pathOfTraversal.empty()) {
-                PageId parentParentPageOffset = pathOfTraversal.back().first;
-                int parentParentPageId = pathOfTraversal.back().second;
-                Page* parentParentPage;
-                this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
-                nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
-                nonLeafType* rightPageData = reinterpret_cast<nonLeafType*>(pRightSib);
-                keyType rightPageFirstKey = keyType(0);
-                traits::assign(rightPageFirstKey, rightPageData->keyArray[0]);
-                this->shiftLeftPage<keyType, traits>(pRightSib, parentPage, keyOffsetInParent, parentOccupancy, pRightOccupancy, false);
-                parentParentPageOffset = parentParentPageOffset ? parentParentPageOffset - 1 : 0;
-                traits::assign(parentPageData->keyArray[parentOccupancy-2], parentParentPageData->keyArray[parentParentPageOffset]);
-                traits::assign(parentParentPageData->keyArray[parentParentPageOffset], rightPageFirstKey);
+          int parentOccupancy = this->getOccupancy<keyType, traits>(parentPage, false);
+#ifdef DEBUG
+          assert(parentPageOffset >= 0);
+#endif
+          if (parentPageOffset < parentOccupancy-1) traits::assign(parentPageData->keyArray[parentPageOffset], reinterpret_cast<leafType*>(rightSib)->keyArray[0]);
+          else {
+            int size = pathOfTraversal.size();
+            int k = 2;
+            while (size - k >= 0) {
+              PageId parentParentPageId = pathOfTraversal[size-k].second;
+              int parentParentPageOffset = pathOfTraversal[size-k].first;
+              Page* tempPage;
+              this->bufMgr->readPage(this->file, parentParentPageId, tempPage);
+              nonLeafType* tempData = reinterpret_cast<nonLeafType*>(tempPage);
+              int tempOccupancy = this->getOccupancy<keyType, traits>(tempPage, false);
+              if (parentParentPageOffset < tempOccupancy -1) {
+                traits::assign(tempData->keyArray[parentParentPageOffset], reinterpret_cast<leafType*>(rightSib)->keyArray[0]);
                 this->bufMgr->unPinPage(this->file, parentParentPageId, true);
-                std::cout << "Parent non-leaf node rotated left." << std::endl;
-              } else {
-                assert(0);
+                break;
               }
-            } else if (pLeftOccupancy > traits::NONLEAFSIZE/2) {
-              rotated = true;
-              this->shiftRightPage<keyType, traits>(pLeftSib, parentPage, keyOffsetInParent, parentOccupancy, pLeftOccupancy, false);
-              pathOfTraversal.pop_back();
-              if (!pathOfTraversal.empty()) {
-                PageId parentParentPageOffset = pathOfTraversal.back().first;
-                int parentParentPageId = pathOfTraversal.back().second;
-                Page* parentParentPage;
-                this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
-                nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
-                nonLeafType* leftPageData = reinterpret_cast<nonLeafType*>(pLeftSib);
-                traits::assign(parentPageData->keyArray[0], parentParentPageData->keyArray[parentParentPageOffset-1]);
-                traits::assign(parentParentPageData->keyArray[parentParentPageOffset-1], leftPageData->keyArray[pLeftOccupancy-2]);
-                traits::assign(leftPageData->keyArray[pLeftOccupancy-2], 0);
+              else {
+                k++;
                 this->bufMgr->unPinPage(this->file, parentParentPageId, true);
-                std::cout << "Parent non-leaf node rotated right." << std::endl;
-              } else {
-                assert(0);
+                continue;
               }
-            } else if (pLeftOccupancy != -1) {
-              this->deleteEntryInNonLeaf<keyType, traits>(parentPage, keyOffsetInParent, parentOccupancy);
-              nonLeafType* leftPageData = reinterpret_cast<nonLeafType*>(pLeftSib);
-              for (int i = pLeftOccupancy,j=1 ; i < traits::NONLEAFSIZE; i++, j++) {
-                traits::assign(leftPageData->keyArray[i],parentPageData->keyArray[j-1]);
-                leftPageData->pageNoArray[i] = parentPageData->pageNoArray[j-1];
-              }
-              pathOfTraversal.pop_back();
-              if (!pathOfTraversal.empty()) {
-                PageId parentParentPageOffset = pathOfTraversal.back().first;
-                int parentParentPageId = pathOfTraversal.back().second;
-                Page* parentParentPage;
-                this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
-                nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
-                traits::assign(leftPageData->keyArray[pLeftOccupancy-1], parentParentPageData->keyArray[parentParentPageOffset-1]);
-                this->bufMgr->unPinPage(this->file, parentParentPageId, true);
-                std::cout << "Parent non-leaf node merged with left." << std::endl;
-              } else {
-                assert(0);
-              }
-            } else if (pRightOccupancy != -1) {
-              this->deleteEntryInNonLeaf<keyType, traits>(parentPage, keyOffsetInParent, parentOccupancy);
-              parentOccupancy-= 1;
-              nonLeafType* rightPageData = reinterpret_cast<nonLeafType*>(pRightSib);
-              for (int i = parentOccupancy,j = 0; i < traits::NONLEAFSIZE; j++,i++) {
-                traits::assign(parentPageData->keyArray[i],rightPageData->keyArray[j]);
-                parentPageData->pageNoArray[i] = rightPageData->pageNoArray[j];
-              }
-              pathOfTraversal.pop_back();
-              if (!pathOfTraversal.empty()) {
-                PageId parentParentPageOffset = pathOfTraversal.back().first;
-                int parentParentPageId = pathOfTraversal.back().second;
-                Page* parentParentPage;
-                this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
-                nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
-                parentParentPageOffset = parentParentPageOffset ? parentParentPageOffset - 1 : 0;
-                traits::assign(parentPageData->keyArray[parentOccupancy-1], parentParentPageData->keyArray[parentParentPageOffset]);
-                this->bufMgr->unPinPage(this->file, parentParentPageId, true);
-                std::cout << "Parent non-leaf node merged with right." << std::endl;
-              } else {
-                assert(0);
-              }
-            } else {
-              std::cout << "Non-leaf page made root." << std::endl;
-              this->deleteEntryInNonLeaf<keyType, traits>(parentPage, keyOffsetInParent, parentOccupancy);
-              this->rootPageNum = parentPageId;
-              if (leftOccupancy != -1) this->bufMgr->unPinPage(this->file, leftSibling, true);
-              if (rightOccupancy != -1) this->bufMgr->unPinPage(this->file, rightSibling, true);
-              this->bufMgr->unPinPage(this->file, parentPageId, true);
-              break;
             }
-            if(-1 != pLeftOccupancy) this->bufMgr->unPinPage(this->file, pLeftSibling, true);
-            if(-1 != pRightOccupancy) this->bufMgr->unPinPage(this->file, pRightSibling, true);
-            this->bufMgr->unPinPage(this->file, parentPageId, true);
           }
-          if (true == rotated) {
-            if(-1 != leftOccupancy) this->bufMgr->unPinPage(this->file, leftSibling, true);
-            if(-1 != rightOccupancy) this->bufMgr->unPinPage(this->file, rightSibling, true);
-            break;
-          }
-        }
-      } else if (rightOccupancy != -1) {
-        this->deleteEntryInLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc, endLoc);
-        endLoc -= 1;
-        leafType* rightPageData = reinterpret_cast<leafType*>(rightSib);
-        dataPage->rightSibPageNo = rightPageData->rightSibPageNo;
-        for (int i = endLoc,j = 0; i < traits::LEAFSIZE; j++,i++) {
-          traits::assign(dataPage->keyArray[i],rightPageData->keyArray[j]);
-          dataPage->ridArray[i] = rightPageData->ridArray[j];
-        }
-        this->bufMgr->unPinPage(this->file, dataPageId, true);
-        bool rotated = false;
-        while (pathOfTraversal.size() >= 1) {
-          parentPageOffset = pathOfTraversal.back().first;
-          parentPageId = pathOfTraversal.back().second;
-          int keyOffsetInParent = (parentPageOffset-1>=0) ? parentPageOffset-1 : 0;
+
+          this->bufMgr->unPinPage(this->file, dataPageId, true);
+          if (-1 != leftOccupancy) this->bufMgr->unPinPage(this->file, leftSibling, false);
+          if (-1 != rightOccupancy) this->bufMgr->unPinPage(this->file, rightSibling, true);
+          this->bufMgr->unPinPage(this->file, parentPageId, true);
+          std::cout << "rotating leftwards from right page." << std::endl;
+        } else if (leftOccupancy > traits::LEAFSIZE/2) {
+          // rotate rightwards from left page
+          this->shiftRightPage<keyType, traits>(leftSib, reinterpret_cast<Page*>(dataPage), startLoc, endLoc, leftOccupancy, true);
+
           Page* parentPage;
           this->bufMgr->readPage(this->file, parentPageId, parentPage);
-          int parentOccupancy = this->getOccupancy<keyType, traits>(parentPage, false);
           nonLeafType* parentPageData = reinterpret_cast<nonLeafType*>(parentPage);
-          if (parentPageId == this->rootPageNum || parentOccupancy > traits::NONLEAFSIZE/2) {
-            this->deleteEntryInNonLeaf<keyType, traits> (parentPage, keyOffsetInParent, parentOccupancy);
-            if (leftOccupancy != -1) this->bufMgr->unPinPage(this->file, leftSibling, false);
-            this->bufMgr->unPinPage(this->file, rightSibling, true);
-            this->bufMgr->unPinPage(this->file, parentPageId, true);
-            break;
-          } else {
-            PageId pRightSibling, pLeftSibling;
-            Page* pRightSib, *pLeftSib;
-            int pRightOccupancy = -1, pLeftOccupancy = -1;
-            this->getLeftRightSiblingOccupancy<keyType, traits> (parentPage, pLeftSibling, pLeftSib, pLeftOccupancy,
-                pRightSibling, pRightSib, pRightOccupancy, pathOfTraversal, false, parentPageId);
-            if (pRightOccupancy > traits::NONLEAFSIZE/2) {
-              rotated = true;
-              pathOfTraversal.pop_back();
-              if (!pathOfTraversal.empty()) {
-                PageId parentParentPageOffset = pathOfTraversal.back().first;
-                int parentParentPageId = pathOfTraversal.back().second;
-                Page* parentParentPage;
-                this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
-                nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
-                nonLeafType* rightPageData = reinterpret_cast<nonLeafType*>(pRightSib);
-                keyType rightPageFirstKey = keyType(0);
-                traits::assign(rightPageFirstKey, rightPageData->keyArray[0]);
-                this->shiftLeftPage<keyType, traits>(pRightSib, parentPage, keyOffsetInParent, parentOccupancy, pRightOccupancy, false);
-                parentParentPageOffset = parentParentPageOffset ? parentParentPageOffset - 1 : 0;
-                traits::assign(parentPageData->keyArray[parentOccupancy-2], parentParentPageData->keyArray[parentParentPageOffset]);
-                traits::assign(parentParentPageData->keyArray[parentParentPageOffset], rightPageFirstKey);
+#ifdef DEBUG
+          assert(parentPageOffset-1 < traits::NONLEAFSIZE);
+#endif
+          if (parentPageOffset >= 1) traits::assign(parentPageData->keyArray[parentPageOffset-1], dataPage->keyArray[0]);
+          else {
+            int size = pathOfTraversal.size();
+            int k = 2;
+            while (size - k >= 0) {
+              PageId parentParentPageId = pathOfTraversal[size-k].second;
+              int parentParentPageOffset = pathOfTraversal[size-k].first;
+              Page* tempPage;
+              this->bufMgr->readPage(this->file, parentParentPageId, tempPage);
+              nonLeafType* tempData = reinterpret_cast<nonLeafType*>(tempPage);
+              if (parentParentPageOffset >= 1) {
+                traits::assign(tempData->keyArray[parentParentPageOffset-1], dataPage->keyArray[0]);
                 this->bufMgr->unPinPage(this->file, parentParentPageId, true);
-                std::cout << "Parent non-leaf node rotated left." << std::endl;
-              } else {
-                assert(0);
+                break;
               }
-            } else if (pLeftOccupancy > traits::NONLEAFSIZE/2) {
-              rotated = true;
-              this->shiftRightPage<keyType, traits>(pLeftSib, parentPage, keyOffsetInParent, parentOccupancy, pLeftOccupancy, false);
-              pathOfTraversal.pop_back();
-              if (!pathOfTraversal.empty()) {
-                PageId parentParentPageOffset = pathOfTraversal.back().first;
-                int parentParentPageId = pathOfTraversal.back().second;
-                Page* parentParentPage;
-                this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
-                nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
-                nonLeafType* leftPageData = reinterpret_cast<nonLeafType*>(pLeftSib);
-                traits::assign(parentPageData->keyArray[0], parentParentPageData->keyArray[parentParentPageOffset-1]);
-                traits::assign(parentParentPageData->keyArray[parentParentPageOffset-1], leftPageData->keyArray[pLeftOccupancy-2]);
-                traits::assign(leftPageData->keyArray[pLeftOccupancy-2], 0);
+              else {
+                k++;
                 this->bufMgr->unPinPage(this->file, parentParentPageId, true);
-                std::cout << "Parent non-leaf node rotated right." << std::endl;
+                continue;
+              }
+            }
+          }
+
+          this->bufMgr->unPinPage(this->file, dataPageId, true);
+          if(-1 != leftOccupancy) this->bufMgr->unPinPage(this->file, leftSibling, true);
+          if (-1 != rightOccupancy) this->bufMgr->unPinPage(this->file, rightSibling, false);
+          this->bufMgr->unPinPage(this->file, parentPageId, true);
+          std::cout << "rotating rightwards from left page." << std::endl;
+        } else if (leftOccupancy != -1) {
+          std::cout << "merging with left page." << std::endl;
+          // merge with left page default, as copying in upper half array is easier
+          this->deleteEntryInLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc, endLoc);
+          leafType* leftPageData = reinterpret_cast<leafType*>(leftSib);
+          leftPageData->rightSibPageNo = rightSibling;
+#ifdef DEBUG
+          assert(leftPageData->ridArray[leftOccupancy].page_number == Page::INVALID_NUMBER);
+#endif
+          for (int i = leftOccupancy,j=0 ; i < traits::LEAFSIZE; i++, j++) {
+            traits::assign(leftPageData->keyArray[i],dataPage->keyArray[j]);
+            leftPageData->ridArray[i] = dataPage->ridArray[j];
+          }
+          this->bufMgr->unPinPage(this->file, dataPageId, true);
+          bool rotated = false;
+          while (pathOfTraversal.size() >= 1) {
+            parentPageOffset = pathOfTraversal.back().first;
+            parentPageId = pathOfTraversal.back().second;
+            Page* parentPage;
+            this->bufMgr->readPage(this->file, parentPageId, parentPage);
+            int parentOccupancy = this->getOccupancy<keyType, traits>(parentPage, false);
+            nonLeafType* parentPageData = reinterpret_cast<nonLeafType*>(parentPage);
+            if (parentPageId == this->rootPageNum || parentOccupancy > traits::NONLEAFSIZE/2) {
+              if (parentOccupancy > 2) {
+                if (parentPageOffset > 0) this->deleteEntryInNonLeaf<keyType, traits> (parentPage, parentPageOffset, parentOccupancy);
+                else {
+                  keyType copyUpKey = keyType(0);
+                  traits::assign(copyUpKey, parentPageData->keyArray[0]);
+                  this->deleteEntryInNonLeaf<keyType, traits> (parentPage, parentPageOffset, parentOccupancy);
+                  int size = pathOfTraversal.size();
+                  int k = 2;
+                  while (size - k >= 0) {
+                    PageId parentParentPageId = pathOfTraversal[size-k].second;
+                    int parentParentPageOffset = pathOfTraversal[size-k].first;
+                    Page* tempPage;
+                    this->bufMgr->readPage(this->file, parentParentPageId, tempPage);
+                    nonLeafType* tempData = reinterpret_cast<nonLeafType*>(tempPage);
+                    if (parentParentPageOffset >= 1) {
+                      traits::assign(tempData->keyArray[parentParentPageOffset-1], copyUpKey);
+                      this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                      break;
+                    }
+                    else {
+                      k++;
+                      this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                      continue;
+                    }
+                  }
+                }
+              } else if (parentOccupancy == 2) {
+#ifdef DEBUG
+                assert(parentPageId == this->rootPageNum);
+#endif
+                traits::assign(parentPageData->keyArray[0], keyValue);
+                this->rootPageNum = parentPageData->pageNoArray[0];
               } else {
+#ifdef DEBUG
                 assert(0);
+#endif
               }
-            } else if (pLeftOccupancy != -1) {
-              this->deleteEntryInNonLeaf<keyType, traits>(parentPage, keyOffsetInParent, parentOccupancy);
-              nonLeafType* leftPageData = reinterpret_cast<nonLeafType*>(pLeftSib);
-              for (int i = pLeftOccupancy,j=1 ; i < traits::NONLEAFSIZE; i++, j++) {
-                traits::assign(leftPageData->keyArray[i],parentPageData->keyArray[j-1]);
-                leftPageData->pageNoArray[i] = parentPageData->pageNoArray[j-1];
-              }
-              pathOfTraversal.pop_back();
-              if (!pathOfTraversal.empty()) {
-                PageId parentParentPageOffset = pathOfTraversal.back().first;
-                int parentParentPageId = pathOfTraversal.back().second;
-                Page* parentParentPage;
-                this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
-                nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
-                traits::assign(leftPageData->keyArray[pLeftOccupancy-1], parentParentPageData->keyArray[parentParentPageOffset-1]);
-                this->bufMgr->unPinPage(this->file, parentParentPageId, true);
-                std::cout << "Parent non-leaf node merged with left." << std::endl;
-              } else {
-                assert(0);
-              }
-            } else if (pRightOccupancy != -1) {
-              this->deleteEntryInNonLeaf<keyType, traits>(parentPage, keyOffsetInParent, parentOccupancy);
-              parentOccupancy-= 1;
-              nonLeafType* rightPageData = reinterpret_cast<nonLeafType*>(pRightSib);
-              for (int i = parentOccupancy,j = 0; i < traits::NONLEAFSIZE; j++,i++) {
-                traits::assign(parentPageData->keyArray[i],rightPageData->keyArray[j]);
-                parentPageData->pageNoArray[i] = rightPageData->pageNoArray[j];
-              }
-              pathOfTraversal.pop_back();
-              if (!pathOfTraversal.empty()) {
-                PageId parentParentPageOffset = pathOfTraversal.back().first;
-                int parentParentPageId = pathOfTraversal.back().second;
-                Page* parentParentPage;
-                this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
-                nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
-                parentParentPageOffset = parentParentPageOffset ? parentParentPageOffset - 1 : 0;
-                traits::assign(parentPageData->keyArray[parentOccupancy-1], parentParentPageData->keyArray[parentParentPageOffset]);
-                this->bufMgr->unPinPage(this->file, parentParentPageId, true);
-                std::cout << "Parent non-leaf node merged with right." << std::endl;
-              } else {
-                assert(0);
-              }
-            } else {
-              std::cout << "Non-leaf page made root." << std::endl;
-              this->deleteEntryInNonLeaf<keyType, traits>(parentPage, keyOffsetInParent, parentOccupancy);
-              this->rootPageNum = parentPageId;
-              if (leftOccupancy != -1) this->bufMgr->unPinPage(this->file, leftSibling, true);
-              if (rightOccupancy != -1) this->bufMgr->unPinPage(this->file, rightSibling, true);
+              this->bufMgr->unPinPage(this->file, leftSibling, true);
+              if (rightOccupancy != -1) this->bufMgr->unPinPage(this->file, rightSibling, false);
               this->bufMgr->unPinPage(this->file, parentPageId, true);
               break;
+            } else {
+              PageId pRightSibling, pLeftSibling; 
+              Page* pRightSib, *pLeftSib;
+              int pRightOccupancy = -1, pLeftOccupancy = -1;
+              this->getLeftRightSiblingOccupancy<keyType, traits> (parentPage, pLeftSibling, pLeftSib, pLeftOccupancy,
+                  pRightSibling, pRightSib, pRightOccupancy, pathOfTraversal, false, parentPageId);
+              if (pRightOccupancy > traits::NONLEAFSIZE/2) {
+                rotated = true;
+                pathOfTraversal.pop_back();
+                if (!pathOfTraversal.empty()) {
+                  PageId parentParentPageOffset = pathOfTraversal.back().first;
+                  int parentParentPageId = pathOfTraversal.back().second;
+                  Page* parentParentPage;
+                  this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
+                  nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
+                  nonLeafType* rightPageData = reinterpret_cast<nonLeafType*>(pRightSib);
+                  keyType rightPageFirstKey = keyType(0);
+                  traits::assign(rightPageFirstKey, rightPageData->keyArray[0]);
+                  if (parentPageOffset > 0) this->shiftLeftPage<keyType, traits>(pRightSib, parentPage, parentPageOffset, parentOccupancy, pRightOccupancy, false);
+                  else {
+                    keyType copyUpKey = keyType(0);
+                    traits::assign(copyUpKey, parentPageData->keyArray[0]);
+                    this->shiftLeftPage<keyType, traits>(pRightSib, parentPage, parentPageOffset, parentOccupancy, pRightOccupancy, false);
+                    int size = pathOfTraversal.size();
+                    int k = 1;
+                    while (size - k >= 0) {
+                      PageId parentParentPageId = pathOfTraversal[size-k].second;
+                      int parentParentPageOffset = pathOfTraversal[size-k].first;
+                      Page* tempPage;
+                      this->bufMgr->readPage(this->file, parentParentPageId, tempPage);
+                      nonLeafType* tempData = reinterpret_cast<nonLeafType*>(tempPage);
+                      if (parentParentPageOffset >= 1) {
+                        traits::assign(tempData->keyArray[parentParentPageOffset-1], copyUpKey);
+                        this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                        break;
+                      }
+                      else {
+                        k++;
+                        this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                        continue;
+                      }
+                    }
+                  }
+                  traits::assign(parentPageData->keyArray[parentOccupancy-2], parentParentPageData->keyArray[parentParentPageOffset]);
+                  traits::assign(parentParentPageData->keyArray[parentParentPageOffset], rightPageFirstKey);
+                  this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                  std::cout << "Parent non-leaf node rotated left." << std::endl;
+                } else {
+                  assert(0);
+                }
+              } else if (pLeftOccupancy > traits::NONLEAFSIZE/2) {
+                rotated = true;
+                if(parentPageOffset>0) this->shiftRightPage<keyType, traits>(pLeftSib, parentPage, parentPageOffset, parentOccupancy, pLeftOccupancy, false);
+                else {
+                  keyType copyUpKey = keyType(0);
+                  traits::assign(copyUpKey, parentPageData->keyArray[0]);
+                  this->shiftRightPage<keyType, traits>(pLeftSib, parentPage, parentPageOffset, parentOccupancy, pLeftOccupancy, false);
+                  int size = pathOfTraversal.size();
+                  int k = 1;
+                  while (size - k >= 0) {
+                    PageId parentParentPageId = pathOfTraversal[size-k].second;
+                    int parentParentPageOffset = pathOfTraversal[size-k].first;
+                    Page* tempPage;
+                    this->bufMgr->readPage(this->file, parentParentPageId, tempPage);
+                    nonLeafType* tempData = reinterpret_cast<nonLeafType*>(tempPage);
+                    if (parentParentPageOffset >= 1) {
+                      traits::assign(tempData->keyArray[parentParentPageOffset-1], copyUpKey);
+                      this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                      break;
+                    }
+                    else {
+                      k++;
+                      this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                      continue;
+                    }
+                  }
+                }
+                pathOfTraversal.pop_back();
+                if (!pathOfTraversal.empty()) {
+                  PageId parentParentPageOffset = pathOfTraversal.back().first;
+                  int parentParentPageId = pathOfTraversal.back().second;
+                  Page* parentParentPage;
+                  this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
+                  nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
+                  nonLeafType* leftPageData = reinterpret_cast<nonLeafType*>(pLeftSib);
+                  if (parentParentPageOffset >= 1) {
+                    traits::assign(parentPageData->keyArray[0], parentParentPageData->keyArray[parentParentPageOffset-1]);
+                    traits::assign(parentParentPageData->keyArray[parentParentPageOffset-1], leftPageData->keyArray[pLeftOccupancy-2]);
+                    traits::assign(leftPageData->keyArray[pLeftOccupancy-2], 0);
+                  } else {
+                    int size = pathOfTraversal.size();
+                    int k = 1;
+                    while (size - k >= 0) {
+                      PageId parentParentPageId = pathOfTraversal[size-k].second;
+                      int parentParentPageOffset = pathOfTraversal[size-k].first;
+                      Page* tempPage;
+                      this->bufMgr->readPage(this->file, parentParentPageId, tempPage);
+                      nonLeafType* tempData = reinterpret_cast<nonLeafType*>(tempPage);
+                      if (parentParentPageOffset >= 1) {
+                        traits::assign(parentPageData->keyArray[0], tempData->keyArray[parentParentPageOffset-1]);
+                        traits::assign(tempData->keyArray[parentParentPageOffset-1], leftPageData->keyArray[pLeftOccupancy-2]);
+                        this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                        break;
+                      }
+                      else {
+                        k++;
+                        this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                        continue;
+                      }
+                    }
+                  }
+                  this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                  std::cout << "Parent non-leaf node rotated right." << std::endl;
+                } else {
+                  assert(0);
+                }
+              } else if (pLeftOccupancy != -1) {
+                this->deleteEntryInNonLeaf<keyType, traits>(parentPage, parentPageOffset, parentOccupancy);
+                nonLeafType* leftPageData = reinterpret_cast<nonLeafType*>(pLeftSib);
+                for (int i = pLeftOccupancy,j=1 ; i < traits::NONLEAFSIZE; i++, j++) {
+                  traits::assign(leftPageData->keyArray[i],parentPageData->keyArray[j-1]);
+                  leftPageData->pageNoArray[i] = parentPageData->pageNoArray[j-1];
+                }
+                pathOfTraversal.pop_back();
+                if (!pathOfTraversal.empty()) {
+                  PageId parentParentPageOffset = pathOfTraversal.back().first;
+                  int parentParentPageId = pathOfTraversal.back().second;
+                  Page* parentParentPage;
+                  this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
+                  nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
+                  assert(parentParentPageOffset >= 1);
+                  traits::assign(leftPageData->keyArray[pLeftOccupancy-1], parentParentPageData->keyArray[parentParentPageOffset-1]);
+                  this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                  std::cout << "Parent non-leaf node merged with left." << std::endl;
+                } else {
+                  assert(0);
+                }
+              } else if (pRightOccupancy != -1) {
+                this->deleteEntryInNonLeaf<keyType, traits>(parentPage, parentPageOffset, parentOccupancy);
+                parentOccupancy-= 1;
+                nonLeafType* rightPageData = reinterpret_cast<nonLeafType*>(pRightSib);
+                for (int i = parentOccupancy,j = 0; i < traits::NONLEAFSIZE; j++,i++) {
+                  traits::assign(parentPageData->keyArray[i],rightPageData->keyArray[j]);
+                  parentPageData->pageNoArray[i] = rightPageData->pageNoArray[j];
+                }
+                pathOfTraversal.pop_back();
+                if (!pathOfTraversal.empty()) {
+                  PageId parentParentPageOffset = pathOfTraversal.back().first;
+                  int parentParentPageId = pathOfTraversal.back().second;
+                  Page* parentParentPage;
+                  this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
+                  nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
+                  int size = pathOfTraversal.size();
+                  if (parentParentPageOffset == 0) {
+                    this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                    int k = 1;
+                    while (size - k >= 0) {
+                      PageId tempParentPageId = pathOfTraversal[size-k].second;
+                      int tempParentPageOffset = pathOfTraversal[size-k].first;
+                      Page* tempPage;
+                      this->bufMgr->readPage(this->file, tempParentPageId, tempPage);
+                      if (tempParentPageOffset >= 1) {
+                        parentParentPageData = reinterpret_cast<nonLeafType*>(tempPage);
+                        parentParentPageOffset = tempParentPageOffset-1;
+                        parentParentPageId = tempParentPageId;
+                        traits::assign(parentPageData->keyArray[parentOccupancy-1], parentParentPageData->keyArray[parentParentPageOffset]);
+                        this->bufMgr->unPinPage(this->file, tempParentPageId, true);
+                        break;
+                      }
+                      else {
+                        k++;
+                        if (size -k < 0) {
+                          parentParentPageOffset = 0;
+                          traits::assign(parentPageData->keyArray[parentOccupancy-1], parentParentPageData->keyArray[parentParentPageOffset]);
+                          this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                          break;
+                        }
+                        this->bufMgr->unPinPage(this->file, tempParentPageId, true);
+                      }
+                    }
+                  } else {
+                    parentParentPageOffset = parentParentPageOffset-1;
+                    traits::assign(parentPageData->keyArray[parentOccupancy-1], parentParentPageData->keyArray[parentParentPageOffset]);
+                    this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                  }
+                  if (pathOfTraversal.back().first == 0) pathOfTraversal[size-1].first = 1;
+                  std::cout << "Parent non-leaf node merged with right." << std::endl;
+                } else {
+                  assert(0);
+                }
+              } else {
+                std::cout << "Non-leaf page made root." << std::endl;
+                this->deleteEntryInNonLeaf<keyType, traits>(parentPage, parentPageOffset, parentOccupancy);
+                this->rootPageNum = parentPageId;
+                if (leftOccupancy != -1) this->bufMgr->unPinPage(this->file, leftSibling, true);
+                if (rightOccupancy != -1) this->bufMgr->unPinPage(this->file, rightSibling, true);
+                this->bufMgr->unPinPage(this->file, parentPageId, true);
+                break;
+              }
+              if(-1 != pLeftOccupancy) this->bufMgr->unPinPage(this->file, pLeftSibling, true);
+              if(-1 != pRightOccupancy) this->bufMgr->unPinPage(this->file, pRightSibling, true);
+              this->bufMgr->unPinPage(this->file, parentPageId, true);
             }
-            if(-1 != pLeftOccupancy) this->bufMgr->unPinPage(this->file, pLeftSibling, true);
-            if(-1 != pRightOccupancy) this->bufMgr->unPinPage(this->file, pRightSibling, true);
-            this->bufMgr->unPinPage(this->file, parentPageId, true);
+            if (true == rotated) {
+              if(-1 != leftOccupancy) this->bufMgr->unPinPage(this->file, leftSibling, true);
+              if(-1 != rightOccupancy) this->bufMgr->unPinPage(this->file, rightSibling, true);
+              break;
+            }
           }
-          if (true == rotated) {
-            if(-1 != leftOccupancy) this->bufMgr->unPinPage(this->file, leftSibling, true);
-            if(-1 != rightOccupancy) this->bufMgr->unPinPage(this->file, rightSibling, true);
-            break;
+        } else if (rightOccupancy != -1) {
+          this->deleteEntryInLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc, endLoc);
+          endLoc -= 1;
+          leafType* rightPageData = reinterpret_cast<leafType*>(rightSib);
+          dataPage->rightSibPageNo = rightPageData->rightSibPageNo;
+          for (int i = endLoc,j = 0; i < traits::LEAFSIZE; j++,i++) {
+            traits::assign(dataPage->keyArray[i],rightPageData->keyArray[j]);
+            dataPage->ridArray[i] = rightPageData->ridArray[j];
           }
+          this->bufMgr->unPinPage(this->file, dataPageId, true);
+          bool rotated = false;
+          while (pathOfTraversal.size() >= 1) {
+            parentPageOffset = pathOfTraversal.back().first;
+            parentPageId = pathOfTraversal.back().second;
+            Page* parentPage;
+            this->bufMgr->readPage(this->file, parentPageId, parentPage);
+            int parentOccupancy = this->getOccupancy<keyType, traits>(parentPage, false);
+            nonLeafType* parentPageData = reinterpret_cast<nonLeafType*>(parentPage);
+            if (parentPageId == this->rootPageNum || parentOccupancy > traits::NONLEAFSIZE/2) {
+              if (parentPageOffset+1 <= traits::NONLEAFSIZE){
+                if (parentPageOffset == 0 && this->rootPageNum == parentPageId && parentOccupancy == 2) {
+                  traits::assign(parentPageData->keyArray[0], rightPageData->keyArray[rightOccupancy-1]);
+                  parentPageData->pageNoArray[1] = Page::INVALID_NUMBER;
+                  this->rootPageNum = parentPageData->pageNoArray[0];
+                } else {
+                  this->deleteEntryInNonLeaf<keyType, traits> (parentPage, parentPageOffset+1, parentOccupancy);
+                }
+              } else {
+                assert(0);
+              }
+              if (leftOccupancy != -1) this->bufMgr->unPinPage(this->file, leftSibling, false);
+              this->bufMgr->unPinPage(this->file, rightSibling, true);
+              this->bufMgr->unPinPage(this->file, parentPageId, true);
+              break;
+            } else {
+              PageId pRightSibling, pLeftSibling;
+              Page* pRightSib, *pLeftSib;
+              int pRightOccupancy = -1, pLeftOccupancy = -1;
+              this->getLeftRightSiblingOccupancy<keyType, traits> (parentPage, pLeftSibling, pLeftSib, pLeftOccupancy,
+                  pRightSibling, pRightSib, pRightOccupancy, pathOfTraversal, false, parentPageId);
+              if (pRightOccupancy > traits::NONLEAFSIZE/2) {
+                rotated = true;
+                pathOfTraversal.pop_back();
+                if (!pathOfTraversal.empty()) {
+                  PageId parentParentPageOffset = pathOfTraversal.back().first;
+                  int parentParentPageId = pathOfTraversal.back().second;
+                  Page* parentParentPage;
+                  this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
+                  nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
+                  nonLeafType* rightPageData = reinterpret_cast<nonLeafType*>(pRightSib);
+                  keyType rightPageFirstKey = keyType(0);
+                  traits::assign(rightPageFirstKey, rightPageData->keyArray[0]);
+                  if (parentPageOffset+1 <= traits::NONLEAFSIZE) this->shiftLeftPage<keyType, traits>(pRightSib, parentPage, parentPageOffset+1, parentOccupancy, pRightOccupancy, false);
+                  else {
+                    assert(0);
+                  }
+                  if (parentParentPageOffset == 0) {
+                    this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                    int k = 1;
+                    int size = pathOfTraversal.size();
+                    while (size - k >= 0) {
+                      PageId tempParentPageId = pathOfTraversal[size-k].second;
+                      int tempParentPageOffset = pathOfTraversal[size-k].first;
+                      Page* tempPage;
+                      this->bufMgr->readPage(this->file, tempParentPageId, tempPage);
+                      if (tempParentPageOffset >= 1) {
+                        parentParentPageData = reinterpret_cast<nonLeafType*>(tempPage);
+                        parentParentPageOffset = tempParentPageOffset-1;
+                        parentParentPageId = tempParentPageId;
+                        traits::assign(parentPageData->keyArray[parentOccupancy-2], parentParentPageData->keyArray[parentParentPageOffset]);
+                        traits::assign(parentParentPageData->keyArray[parentParentPageOffset], rightPageFirstKey);
+                        this->bufMgr->unPinPage(this->file, tempParentPageId, true);
+                        break;
+                      }
+                      else {
+                        k++;
+                        if (size -k < 0) {
+                          parentParentPageOffset = 0;
+                          traits::assign(parentPageData->keyArray[parentOccupancy-2], parentParentPageData->keyArray[parentParentPageOffset]);
+                          traits::assign(parentParentPageData->keyArray[parentParentPageOffset], rightPageFirstKey);
+                          this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                          break;
+                        }
+                        this->bufMgr->unPinPage(this->file, tempParentPageId, true);
+                      }
+                    }
+                  } else {
+                    parentParentPageOffset = parentParentPageOffset-1;
+                    traits::assign(parentPageData->keyArray[parentOccupancy-2], parentParentPageData->keyArray[parentParentPageOffset]);
+                    traits::assign(parentParentPageData->keyArray[parentParentPageOffset], rightPageFirstKey);
+                    this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                  }
+                  std::cout << "Parent non-leaf node rotated left." << std::endl;
+                } else {
+                  assert(0);
+                }
+              } else if (pLeftOccupancy > traits::NONLEAFSIZE/2) {
+                rotated = true;
+                if (parentPageOffset+1 <= traits::NONLEAFSIZE) this->shiftRightPage<keyType, traits>(pLeftSib, parentPage, parentPageOffset+1, parentOccupancy, pLeftOccupancy, false);
+                else {
+                  assert(0);
+                }
+                pathOfTraversal.pop_back();
+                if (!pathOfTraversal.empty()) {
+                  PageId parentParentPageOffset = pathOfTraversal.back().first;
+                  int parentParentPageId = pathOfTraversal.back().second;
+                  Page* parentParentPage;
+                  this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
+                  nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
+                  nonLeafType* leftPageData = reinterpret_cast<nonLeafType*>(pLeftSib);
+                  assert(parentParentPageOffset >= 1);
+                  traits::assign(parentPageData->keyArray[0], parentParentPageData->keyArray[parentParentPageOffset-1]);
+                  traits::assign(parentParentPageData->keyArray[parentParentPageOffset-1], leftPageData->keyArray[pLeftOccupancy-2]);
+                  traits::assign(leftPageData->keyArray[pLeftOccupancy-2], 0);
+                  this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                  std::cout << "Parent non-leaf node rotated right." << std::endl;
+                } else {
+                  assert(0);
+                }
+              } else if (pLeftOccupancy != -1) {
+                if (parentPageOffset+1 <= traits::NONLEAFSIZE)this->deleteEntryInNonLeaf<keyType, traits>(parentPage, parentPageOffset+1, parentOccupancy);
+                else {
+                  assert(0);
+                }
+                nonLeafType* leftPageData = reinterpret_cast<nonLeafType*>(pLeftSib);
+                for (int i = pLeftOccupancy,j=1 ; i < traits::NONLEAFSIZE; i++, j++) {
+                  traits::assign(leftPageData->keyArray[i],parentPageData->keyArray[j-1]);
+                  leftPageData->pageNoArray[i] = parentPageData->pageNoArray[j-1];
+                }
+                pathOfTraversal.pop_back();
+                if (!pathOfTraversal.empty()) {
+                  PageId parentParentPageOffset = pathOfTraversal.back().first;
+                  int parentParentPageId = pathOfTraversal.back().second;
+                  Page* parentParentPage;
+                  this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
+                  nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
+                  assert(parentParentPageOffset >= 1);
+                  traits::assign(leftPageData->keyArray[pLeftOccupancy-1], parentParentPageData->keyArray[parentParentPageOffset-1]);
+                  this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                  std::cout << "Parent non-leaf node merged with left." << std::endl;
+                } else {
+                  assert(0);
+                }
+              } else if (pRightOccupancy != -1) {
+                if (parentPageOffset+1 <= traits::NONLEAFSIZE)this->deleteEntryInNonLeaf<keyType, traits>(parentPage, parentPageOffset+1, parentOccupancy);
+                else {
+                  assert(0);
+                }
+                parentOccupancy-= 1;
+                nonLeafType* rightPageData = reinterpret_cast<nonLeafType*>(pRightSib);
+                for (int i = parentOccupancy,j = 0; i < traits::NONLEAFSIZE; j++,i++) {
+                  traits::assign(parentPageData->keyArray[i],rightPageData->keyArray[j]);
+                  parentPageData->pageNoArray[i] = rightPageData->pageNoArray[j];
+                }
+                pathOfTraversal.pop_back();
+                if (!pathOfTraversal.empty()) {
+                  PageId parentParentPageOffset = pathOfTraversal.back().first;
+                  int parentParentPageId = pathOfTraversal.back().second;
+                  Page* parentParentPage;
+                  this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
+                  nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
+#ifdef DEBUG
+                  assert(parentParentPageOffset>=0);
+#endif
+                  traits::assign(parentPageData->keyArray[parentOccupancy-1], parentParentPageData->keyArray[parentParentPageOffset]);
+                  this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+                  std::cout << "Parent non-leaf node merged with right." << std::endl;
+                } else {
+                  assert(0);
+                }
+              } else {
+                std::cout << "Non-leaf page made root." << std::endl;
+                if (parentPageOffset+1 <= traits::NONLEAFSIZE)this->deleteEntryInNonLeaf<keyType, traits>(parentPage, parentPageOffset+1, parentOccupancy);
+                else {
+                  assert(0);
+                }
+                this->rootPageNum = parentPageId;
+                if (leftOccupancy != -1) this->bufMgr->unPinPage(this->file, leftSibling, true);
+                if (rightOccupancy != -1) this->bufMgr->unPinPage(this->file, rightSibling, true);
+                this->bufMgr->unPinPage(this->file, parentPageId, true);
+                break;
+              }
+              if(-1 != pLeftOccupancy) this->bufMgr->unPinPage(this->file, pLeftSibling, true);
+              if(-1 != pRightOccupancy) this->bufMgr->unPinPage(this->file, pRightSibling, true);
+              this->bufMgr->unPinPage(this->file, parentPageId, true);
+            }
+            if (true == rotated) {
+              if(-1 != leftOccupancy) this->bufMgr->unPinPage(this->file, leftSibling, true);
+              if(-1 != rightOccupancy) this->bufMgr->unPinPage(this->file, rightSibling, true);
+              break;
+            }
+          }
+          std::cout << "merging with right page." << std::endl;
+        } else {
+          this->deleteEntryInLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc, endLoc);
+          this->bufMgr->unPinPage(this->file, dataPageId, true);
+          std::cout << "No left/right page, just deleted." << std::endl;
         }
-        std::cout << "merging with right page." << std::endl;
       } else {
         this->deleteEntryInLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc, endLoc);
         this->bufMgr->unPinPage(this->file, dataPageId, true);
-        std::cout << "No left/right page, just deleted." << std::endl;
+        this->bufMgr->unPinPage(this->file, this->rootPageNum, true);
       }
     }
   }
 #ifdef DEBUG
+  assert(retval);
   this->bufMgr->flushFile(this->file);
 #endif
-  return retval;
+#ifdef DEBUG
+    bool rc = this->isStructureValid<keyType,traits>();
+    assert(true == rc);
+#endif
+    return retval;
 }
 
 }

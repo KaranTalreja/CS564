@@ -65,6 +65,7 @@ int intScan(BTreeIndex *index, int lowVal, Operator lowOp, int highVal, Operator
 void indexTests();
 void indexDeleteTests();
 void doubleTests();
+void doubleDeleteTests();
 int doubleScan(BTreeIndex *index, double lowVal, Operator lowOp, double highVal, Operator highOp);
 void stringTests();
 int stringScan(BTreeIndex *index, int lowVal, Operator lowOp, int highVal, Operator highOp);
@@ -208,7 +209,7 @@ void test4()
   // on attributes of all three types (int, double, string)
   std::cout << "--------------------" << std::endl;
   std::cout << "deleteRelationForward" << std::endl;
-  createRelationForward();
+  createRelationRandom();
   indexDeleteTests();
   deleteRelation();
 }
@@ -431,7 +432,7 @@ void indexDeleteTests()
   }
   else if(testNum == 2)
   {
-    doubleTests();
+    doubleDeleteTests();
     try
     {
       File::remove(doubleIndexName);
@@ -442,7 +443,6 @@ void indexDeleteTests()
   }
   else if(testNum == 3)
   {
-    stringTests();
     try
     {
       File::remove(stringIndexName);
@@ -484,20 +484,49 @@ void intDeleteTests()
 {
   std::cout << "Create a B+ Tree index on the integer field" << std::endl;
   BTreeIndex index(relationName, intIndexName, bufMgr, offsetof(tuple,i), INTEGER);
+  
+#define set 5000
+#define test 4995
+  std::vector<int> intvec(set);
+  for(int i = 0; i < set; i++ ) {
+    intvec[i] = i;
+  }
+  int val,pos;
+  for (int i = 0,j=0; i < set; i++,j++) {
+    if (j > test) break;
+    pos = random() % (set-i);
+    val = intvec[pos];
+    index.deleteEntry(&val);
+    int temp = intvec[set-1-i];
+    intvec[set-1-i] = intvec[pos];
+    intvec[pos] = temp; 
+    checkPassFail(intScan(&index,0,GTE,5000,LT), 5000-i-1);
+  }
+}
 
-  int key = 29;
-  index.deleteEntry(&key);
-  // run some tests
-  checkPassFail(intScan(&index,25,GT,40,LT), 13)
-  checkPassFail(intScan(&index,20,GTE,35,LTE), 15)
-  checkPassFail(intScan(&index,-3,GT,3,LT), 3)
-  checkPassFail(intScan(&index,996,GT,1001,LT), 4)
-  checkPassFail(intScan(&index,0,GT,1,LT), 0)
-  checkPassFail(intScan(&index,300,GT,400,LT), 99)
-  checkPassFail(intScan(&index,3000,GTE,4000,LT), 1000)
-  checkPassFail(intScan(&index,0,GTE,5000,LT), 4999)
-  checkPassFail(intScan(&index,0,GTE,5005,LT), 4999)
-  checkPassFail(intScan(&index,5000,GTE,5005,LT), 0)
+void doubleDeleteTests()
+{
+  std::cout << "Create a B+ Tree index on the double field" << std::endl;
+  BTreeIndex index(relationName, intIndexName, bufMgr, offsetof(tuple,d), DOUBLE);
+  
+#define set 5000
+#define test 4995
+  std::vector<double> intvec(set);
+  for(double i = 0; i < set; i++ ) {
+    intvec[i] = i;
+  }
+  int pos;
+  double val;
+  for (int i = 0,j=0; i < set; i++,j++) {
+    if (j > test) break;
+    pos = random() % (set-i);
+    val = intvec[pos];
+    index.deleteEntry(&val);
+    double temp = intvec[set-1-i];
+    intvec[set-1-i] = intvec[pos];
+    intvec[pos] = temp; 
+    checkPassFail(doubleScan(&index,0,GTE,5000,LT), 5000-i-1);
+  }
 }
 
 int intScan(BTreeIndex * index, int lowVal, Operator lowOp, int highVal, Operator highOp)

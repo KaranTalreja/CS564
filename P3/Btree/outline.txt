@@ -1,0 +1,3 @@
+Test cases:
+  As explained in design report, are added which conform to the given standard. Also major testing was done by asserts, so anything under macro DEBUG in the code is for testing purposes
+Design Report: CS564_P3.pdf

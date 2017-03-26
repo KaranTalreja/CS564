@@ -11,7 +11,7 @@
 
 #include <algorithm>
 #include <vector>
-#define DEBUG
+//#define DEBUG
 
 
 namespace badgerdb

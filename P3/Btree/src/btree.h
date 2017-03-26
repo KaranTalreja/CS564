@@ -27,7 +27,7 @@
 #include "exceptions/end_of_file_exception.h"
 #include <assert.h>
 
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 #include <iostream>

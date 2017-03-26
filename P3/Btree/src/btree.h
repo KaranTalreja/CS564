@@ -490,49 +490,69 @@ class BTreeIndex {
 	 * @throws ScanNotInitializedException If no scan has been initialized.
 	**/
 	const void endScan();
+
+	/**
+	 * @brief Static class which needs to be defined for all data types for which Btree indexing is available.
+	 * This class would define certain key things required by the Btree implementation for each data type.
+	 * This class is a default template parameter for all Btree routines.
+	 */
   template <typename keyType> class keyTraits;
 
 private:
+  ///@brief Templated routine with keyType as template parameter for call from startScan routine.
 	template <typename keyType, typename traits=keyTraits<keyType> >
 	const void startScanTemplate(const void* lowVal, const void* highVal);
 
+	///@brief Templated routine with keyType as template parameter for call from scanNext routine.
   template <typename keyType, typename traits=keyTraits<keyType> >
   const void scanNextTemplate(RecordId& outRid);
 
+  ///@brief Templated routine with keyType as template parameter for call from insertKeyTemplate routine.
 	template <typename keyType, typename traits=keyTraits<keyType> >
   void getPageNoAndOffsetOfKeyInsert(const void* key, Page* rootPage, PageId& pageNo, int& insertAt, int& endOfRecordsOffset, PageId& lastPageNo, bool insert = true);
 
+	///@brief Templated routine with keyType as template parameter for call from constructor.
 	template <typename keyType, typename traits=keyTraits<keyType> >
-	void createRoot(Page* rootPage);
+	void createRoot(Page*& rootPage);
 
+	///@brief Templated routine with keyType as template parameter for call from insertKey routine.
   template <typename keyType, typename traits=keyTraits<keyType> >
   const void insertKeyTemplate(const void* key, const RecordId rid);
 
+  ///@brief Templated routine with keyType as template parameter for call from deleteKey routine.
   template <typename keyType, typename traits=keyTraits<keyType> >
   const bool deleteKeyTemplate(const void* key);
   
+  ///@brief Templated routine with keyType as template parameter for getting sibling page for a page in BTree.
   template<typename keyType, typename traits=keyTraits<keyType> >
   PageId getSiblingPage (Page* currPage, std::vector<std::pair<int,PageId>>& pathOfTraversal, bool dataPage, bool right, PageId parentPageId);
   
+  ///@brief Templated routine with keyType as template parameter for getting the occupancy of a leaf/nonleaf page
   template<typename keyType, typename traits=keyTraits<keyType> >
   int getOccupancy(Page* currPage, bool dataPage);
   
-  template<typename keyType, typename traits>
+  ///@brief Templated routine with keyType as template parameter for deleting entry in a leaf page
+  template<typename keyType, typename traits=keyTraits<keyType>>
   void deleteEntryInLeaf(Page* leafPage, int startLoc, int endLoc);
   
-  template<typename keyType, typename traits>
+  ///@brief Templated routine with keyType as template parameter for getting left and right sibling page occupancy
+  template<typename keyType, typename traits=keyTraits<keyType>>
   void getLeftRightSiblingOccupancy (Page* currPage, PageId& leftSibling, Page*& leftSib, int& leftOccupancy, PageId& rightSibling, Page*& rightSib, int& rightOccupancy, std::vector<std::pair<int,PageId>>& pathOfTraversal, bool dataPage, PageId parentPageId);
   
-  template<typename keyType, typename traits>
+  ///@brief Templated routine with keyType as template parameter for deleting entry in non-leaf page
+  template<typename keyType, typename traits=keyTraits<keyType>>
   void deleteEntryInNonLeaf(Page* nonLeafPage, int startLoc, int endLoc);
   
-  template<typename keyType, typename traits>
+  ///@brief Templated routine with keyType as template parameter for shifting entry right from left page.
+  template<typename keyType, typename traits=keyTraits<keyType>>
   void shiftRightPage (Page* leftSib, Page* page, int startLoc, int endLoc, int leftOccupancy, bool dataPage);
 
-  template<typename keyType, typename traits>
+  ///@brief Templated routine with keyType as template parameter for shifting entry left from right page.
+  template<typename keyType, typename traits=keyTraits<keyType>>
   void shiftLeftPage (Page* rightSib, Page* page, int startLoc, int endLoc, int rightOccupancy, bool dataPage);
 
-  template<typename keyType, typename traits>
+  ///@brief Templated routine with keyType as template parameter for checking whether the BTree structure is valid.
+  template<typename keyType, typename traits=keyTraits<keyType>>
   bool isStructureValid();
 };
 
@@ -544,6 +564,7 @@ typedef struct tuple {
 	char s[64];
 } RECORD;
 
+///@brief Partial template specialization for static class keyTraits for int data type specialization.
 template<>
 class BTreeIndex::keyTraits<int> {
 public:
@@ -594,6 +615,7 @@ public:
    }
 };
 
+///@brief Partial template specialization for static class keyTraits for double data type specialization.
 template<>
 class BTreeIndex::keyTraits<double> {
 public:
@@ -644,6 +666,7 @@ public:
    }
 };
 
+///@brief Partial template specialization for static class keyTraits for char* data type specialization.
 template<>
 class BTreeIndex::keyTraits<char*> {
 public:
@@ -708,8 +731,11 @@ public:
    }
 };
 
+/**
+ * @param rootPage  The root page in which root page is to be created.
+ */
 template<typename keyType, typename traits>
-void BTreeIndex::createRoot(Page* rootPage) {
+void BTreeIndex::createRoot(Page*& rootPage) {
   typedef typename traits::nonLeafType nonLeafType;
   nonLeafType rootData;
   memset(&rootData, 0, sizeof(nonLeafType));
@@ -1523,8 +1549,10 @@ bool BTreeIndex::isStructureValid() {
       queue[(depth+1)%2].push_back(minOrMaxConstraint);
       for (int i = 0; i < traits::NONLEAFSIZE; i++) {
         if (!(i+2 > traits::NONLEAFSIZE || currData->pageNoArray[i+2] == Page::INVALID_NUMBER)) {
+#ifdef DEBUG
           assert(currData->level <= maxDepth);
           assert(traits::less(currData->keyArray[i], currData->keyArray[i+1]));
+#endif
           minOrMaxConstraint.first.first = currData->pageNoArray[i+1];
           traits::assign(minOrMaxConstraint.first.second, currData->keyArray[i]);
           minOrMaxConstraint.second = false;
@@ -1532,26 +1560,32 @@ bool BTreeIndex::isStructureValid() {
           if (this->rootPageNum != queue[depth%2].back().first.first) {
             minOrMaxConstraint = queue[depth%2].back();
             bool checkMax = minOrMaxConstraint.second;
+#ifdef DEBUG
             if (true == checkMax) {
               assert(traits::lessE(currData->keyArray[i],minOrMaxConstraint.first.second));
             } else {
               assert(traits::greatE(currData->keyArray[i],minOrMaxConstraint.first.second));
             }
+#endif
           }
         } else { 
           minOrMaxConstraint.first.first = currData->pageNoArray[i+1];
           traits::assign(minOrMaxConstraint.first.second, currData->keyArray[i]);
           minOrMaxConstraint.second = false;
           queue[(depth+1)%2].push_back(minOrMaxConstraint);
+#ifdef DEBUG
           assert(i+1 >= traits::NONLEAFSIZE || traits::equal(currData->keyArray[i+1],0));
+#endif
           if (this->rootPageNum != queue[depth%2].back().first.first) {
             minOrMaxConstraint = queue[depth%2].back();
             bool checkMax = minOrMaxConstraint.second;
+#ifdef DEBUG
             if (true == checkMax) {
               assert(traits::lessE(currData->keyArray[i],minOrMaxConstraint.first.second));
             } else {
               assert(traits::greatE(currData->keyArray[i],minOrMaxConstraint.first.second));
             }
+#endif
           }
           break;
         }
@@ -1566,14 +1600,18 @@ bool BTreeIndex::isStructureValid() {
     leafType* data = reinterpret_cast<leafType*>(page);
     for (int i = 1; i < traits::LEAFSIZE; i++) {
       if (data->ridArray[i].page_number == Page::INVALID_NUMBER) break;
+#ifdef DEBUG 
       assert(traits::greatE(data->keyArray[i],data->keyArray[i-1]));
+#endif
       minOrMaxConstraint = queue[depth%2].back();
       bool checkMax = minOrMaxConstraint.second;
+#ifdef DEBUG 
       if (true == checkMax) {
         assert(traits::lessE(data->keyArray[i-1],minOrMaxConstraint.first.second));
       } else {
         assert(traits::greatE(data->keyArray[i-1],minOrMaxConstraint.first.second));
       }
+#endif
     }
     this->bufMgr->unPinPage(this->file, queue[depth%2].back().first.first, true);
     queue[depth%2].pop_back();
@@ -1662,7 +1700,9 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
     if (endLoc > traits::LEAFSIZE/2) {
       this->deleteEntryInLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc, endLoc);
       this->bufMgr->unPinPage(this->file, dataPageId, true);
+#ifdef DEBUG 
       std::cout << "normal operation." << std::endl;
+#endif
     } else {
       this->bufMgr->readPage(this->file, this->rootPageNum, rootPage);
       rootData = reinterpret_cast<nonLeafType*>(rootPage);
@@ -1713,7 +1753,9 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
           if (-1 != leftOccupancy) this->bufMgr->unPinPage(this->file, leftSibling, false);
           if (-1 != rightOccupancy) this->bufMgr->unPinPage(this->file, rightSibling, true);
           this->bufMgr->unPinPage(this->file, parentPageId, true);
+#ifdef DEBUG 
           std::cout << "rotating leftwards from right page." << std::endl;
+#endif
         } else if (leftOccupancy > traits::LEAFSIZE/2) {
           // rotate rightwards from left page
           this->shiftRightPage<keyType, traits>(leftSib, reinterpret_cast<Page*>(dataPage), startLoc, endLoc, leftOccupancy, true);
@@ -1751,9 +1793,13 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
           if(-1 != leftOccupancy) this->bufMgr->unPinPage(this->file, leftSibling, true);
           if (-1 != rightOccupancy) this->bufMgr->unPinPage(this->file, rightSibling, false);
           this->bufMgr->unPinPage(this->file, parentPageId, true);
+#ifdef DEBUG 
           std::cout << "rotating rightwards from left page." << std::endl;
+#endif
         } else if (leftOccupancy != -1) {
+#ifdef DEBUG 
           std::cout << "merging with left page." << std::endl;
+#endif
           // merge with left page default, as copying in upper half array is easier
           this->deleteEntryInLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc, endLoc);
           leafType* leftPageData = reinterpret_cast<leafType*>(leftSib);
@@ -1862,9 +1908,13 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
                   traits::assign(parentPageData->keyArray[parentOccupancy-2], parentParentPageData->keyArray[parentParentPageOffset]);
                   traits::assign(parentParentPageData->keyArray[parentParentPageOffset], rightPageFirstKey);
                   this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+#ifdef DEBUG 
                   std::cout << "Parent non-leaf node rotated left." << std::endl;
+#endif
                 } else {
+#ifdef DEBUG 
                   assert(0);
+#endif
                 }
               } else if (pLeftOccupancy > traits::NONLEAFSIZE/2) {
                 rotated = true;
@@ -1928,9 +1978,13 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
                     }
                   }
                   this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+#ifdef DEBUG 
                   std::cout << "Parent non-leaf node rotated right." << std::endl;
+#endif
                 } else {
+#ifdef DEBUG 
                   assert(0);
+#endif
                 }
               } else if (pLeftOccupancy != -1) {
                 this->deleteEntryInNonLeaf<keyType, traits>(parentPage, parentPageOffset, parentOccupancy);
@@ -1946,12 +2000,18 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
                   Page* parentParentPage;
                   this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
                   nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
+#ifdef DEBUG 
                   assert(parentParentPageOffset >= 1);
+#endif
                   traits::assign(leftPageData->keyArray[pLeftOccupancy-1], parentParentPageData->keyArray[parentParentPageOffset-1]);
                   this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+#ifdef DEBUG 
                   std::cout << "Parent non-leaf node merged with left." << std::endl;
+#endif
                 } else {
+#ifdef DEBUG 
                   assert(0);
+#endif
                 }
               } else if (pRightOccupancy != -1) {
                 this->deleteEntryInNonLeaf<keyType, traits>(parentPage, parentPageOffset, parentOccupancy);
@@ -2002,12 +2062,18 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
                     this->bufMgr->unPinPage(this->file, parentParentPageId, true);
                   }
                   if (pathOfTraversal.back().first == 0) pathOfTraversal[size-1].first = 1;
+#ifdef DEBUG 
                   std::cout << "Parent non-leaf node merged with right." << std::endl;
+#endif
                 } else {
+#ifdef DEBUG 
                   assert(0);
+#endif
                 }
               } else {
+#ifdef DEBUG 
                 std::cout << "Non-leaf page made root." << std::endl;
+#endif
                 this->deleteEntryInNonLeaf<keyType, traits>(parentPage, parentPageOffset, parentOccupancy);
                 this->rootPageNum = parentPageId;
                 if (leftOccupancy != -1) this->bufMgr->unPinPage(this->file, leftSibling, true);
@@ -2053,7 +2119,9 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
                   this->deleteEntryInNonLeaf<keyType, traits> (parentPage, parentPageOffset+1, parentOccupancy);
                 }
               } else {
+#ifdef DEBUG 
                 assert(0);
+#endif
               }
               if (leftOccupancy != -1) this->bufMgr->unPinPage(this->file, leftSibling, false);
               this->bufMgr->unPinPage(this->file, rightSibling, true);
@@ -2079,7 +2147,9 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
                   traits::assign(rightPageFirstKey, rightPageData->keyArray[0]);
                   if (parentPageOffset+1 <= traits::NONLEAFSIZE) this->shiftLeftPage<keyType, traits>(pRightSib, parentPage, parentPageOffset+1, parentOccupancy, pRightOccupancy, false);
                   else {
+#ifdef DEBUG 
                     assert(0);
+#endif
                   }
                   if (parentParentPageOffset == 0) {
                     this->bufMgr->unPinPage(this->file, parentParentPageId, true);
@@ -2117,15 +2187,21 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
                     traits::assign(parentParentPageData->keyArray[parentParentPageOffset], rightPageFirstKey);
                     this->bufMgr->unPinPage(this->file, parentParentPageId, true);
                   }
+#ifdef DEBUG 
                   std::cout << "Parent non-leaf node rotated left." << std::endl;
+#endif
                 } else {
+#ifdef DEBUG 
                   assert(0);
+#endif
                 }
               } else if (pLeftOccupancy > traits::NONLEAFSIZE/2) {
                 rotated = true;
                 if (parentPageOffset+1 <= traits::NONLEAFSIZE) this->shiftRightPage<keyType, traits>(pLeftSib, parentPage, parentPageOffset+1, parentOccupancy, pLeftOccupancy, false);
                 else {
+#ifdef DEBUG 
                   assert(0);
+#endif
                 }
                 pathOfTraversal.pop_back();
                 if (!pathOfTraversal.empty()) {
@@ -2135,19 +2211,27 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
                   this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
                   nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
                   nonLeafType* leftPageData = reinterpret_cast<nonLeafType*>(pLeftSib);
+#ifdef DEBUG 
                   assert(parentParentPageOffset >= 1);
+#endif
                   traits::assign(parentPageData->keyArray[0], parentParentPageData->keyArray[parentParentPageOffset-1]);
                   traits::assign(parentParentPageData->keyArray[parentParentPageOffset-1], leftPageData->keyArray[pLeftOccupancy-2]);
                   traits::assign(leftPageData->keyArray[pLeftOccupancy-2], 0);
                   this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+#ifdef DEBUG 
                   std::cout << "Parent non-leaf node rotated right." << std::endl;
+#endif
                 } else {
+#ifdef DEBUG 
                   assert(0);
+#endif
                 }
               } else if (pLeftOccupancy != -1) {
                 if (parentPageOffset+1 <= traits::NONLEAFSIZE)this->deleteEntryInNonLeaf<keyType, traits>(parentPage, parentPageOffset+1, parentOccupancy);
                 else {
+#ifdef DEBUG 
                   assert(0);
+#endif
                 }
                 nonLeafType* leftPageData = reinterpret_cast<nonLeafType*>(pLeftSib);
                 for (int i = pLeftOccupancy,j=1 ; i < traits::NONLEAFSIZE; i++, j++) {
@@ -2161,17 +2245,25 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
                   Page* parentParentPage;
                   this->bufMgr->readPage(this->file, parentParentPageId, parentParentPage);
                   nonLeafType* parentParentPageData = reinterpret_cast<nonLeafType*>(parentParentPage);
+#ifdef DEBUG 
                   assert(parentParentPageOffset >= 1);
+#endif
                   traits::assign(leftPageData->keyArray[pLeftOccupancy-1], parentParentPageData->keyArray[parentParentPageOffset-1]);
                   this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+#ifdef DEBUG 
                   std::cout << "Parent non-leaf node merged with left." << std::endl;
+#endif
                 } else {
+#ifdef DEBUG 
                   assert(0);
+#endif
                 }
               } else if (pRightOccupancy != -1) {
                 if (parentPageOffset+1 <= traits::NONLEAFSIZE)this->deleteEntryInNonLeaf<keyType, traits>(parentPage, parentPageOffset+1, parentOccupancy);
                 else {
+#ifdef DEBUG 
                   assert(0);
+#endif
                 }
                 parentOccupancy-= 1;
                 nonLeafType* rightPageData = reinterpret_cast<nonLeafType*>(pRightSib);
@@ -2191,15 +2283,23 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
 #endif
                   traits::assign(parentPageData->keyArray[parentOccupancy-1], parentParentPageData->keyArray[parentParentPageOffset]);
                   this->bufMgr->unPinPage(this->file, parentParentPageId, true);
+#ifdef DEBUG 
                   std::cout << "Parent non-leaf node merged with right." << std::endl;
+#endif
                 } else {
+#ifdef DEBUG 
                   assert(0);
+#endif
                 }
               } else {
+#ifdef DEBUG 
                 std::cout << "Non-leaf page made root." << std::endl;
+#endif
                 if (parentPageOffset+1 <= traits::NONLEAFSIZE)this->deleteEntryInNonLeaf<keyType, traits>(parentPage, parentPageOffset+1, parentOccupancy);
                 else {
+#ifdef DEBUG 
                   assert(0);
+#endif
                 }
                 this->rootPageNum = parentPageId;
                 if (leftOccupancy != -1) this->bufMgr->unPinPage(this->file, leftSibling, true);
@@ -2217,11 +2317,15 @@ const bool BTreeIndex::deleteKeyTemplate(const void* key) {
               break;
             }
           }
+#ifdef DEBUG 
           std::cout << "merging with right page." << std::endl;
+#endif
         } else {
           this->deleteEntryInLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc, endLoc);
           this->bufMgr->unPinPage(this->file, dataPageId, true);
+#ifdef DEBUG 
           std::cout << "No left/right page, just deleted." << std::endl;
+#endif
         }
       } else {
         this->deleteEntryInLeaf<keyType, traits>(reinterpret_cast<Page*>(dataPage), startLoc, endLoc);

@@ -1,5 +1,7 @@
 #include <stdio.h>
-#include "sqlite3.h"
+#include "load.h"
+
+using namespace std;
 
 int main(int argc, char* argv[])
 {
@@ -14,5 +16,7 @@ int main(int argc, char* argv[])
   }else{
     fprintf(stderr, "database opened successfully\n");
   }
+  loadTables(db);
+
   sqlite3_close(db); //sqlite3 api
 }

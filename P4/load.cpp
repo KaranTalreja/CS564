@@ -16,6 +16,7 @@ int main(int argc, char* argv[])
   }else{
     fprintf(stderr, "database opened successfully\n");
   }
+  init_data();
   loadTables(db);
 
   sqlite3_close(db); //sqlite3 api

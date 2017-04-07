@@ -9,21 +9,91 @@
 #include <algorithm>
 #include "sqlite3.h"
 #include "assert.h"
+#include "stdarg.h"
 
 using namespace std;
 
 #define DEBUG
 #define SHOW_COMMAND
 
-vector<const char*> TABLES = {"FOOD_DES", "FD_GROUP", "LANGUAL", "LANGDESC", "NUT_DATA", "NUTR_DEF", "SRC_CD",
-    "DERIV_CD", "WEIGHT", "FOOTNOTE", "DATSRCLN", "DATA_SRC"};
+void initialize2dVec (vector<vector<const char*> > &in, int total, int num, const char* n_char, ...)
+{
+  va_list valist;
 
-vector<const char*> TABLE_FILE = {"data/FOOD_DES.txt", "data/FD_GROUP.txt", "data/LANGUAL.txt", "data/LANGDESC.txt",
-    "data/NUT_DATA.txt", "data/NUTR_DEF.txt", "data/SRC_CD.txt", "data/DERIV_CD.txt", "data/WEIGHT.txt", "data/FOOTNOTE.txt", "data/DATSRCLN.txt",
-    "data/DATA_SRC.txt"};
+  /* initialize valist for num number of arguments */
+  va_start(valist, n_char);
 
-vector<vector<const char*> > TABLE_DTYPE = {
-    {"CHAR(5) PRIMARY KEY NOT NULL",
+  for (int i = 0; i < total; i++) {
+    in.push_back(vector<const char*>());
+    for (int j = 0; j< num; j++) {
+      in[i].push_back(va_arg(valist, const char*));
+    }
+  }
+
+  /* clean memory reserved for valist */
+  va_end(valist);
+}
+
+void initializeVec (vector<const char*>& in, int num, const char* n_char, ...)
+{
+    va_list valist;
+    int i;
+
+    /* initialize valist for num number of arguments */
+    va_start(valist, n_char);
+
+    in.push_back(n_char);
+    /* access all the arguments assigned to valist */
+    for (i = 0; i < num-1; i++) {
+      const char* str = va_arg(valist, const char*);
+      in.push_back(str);
+    }
+
+    /* clean memory reserved for valist */
+    va_end(valist);
+}
+
+vector<const char*> TABLES;
+
+vector<const char*> TABLE_FILE;
+
+vector<vector<const char*> > TABLE_DTYPE;
+vector<const char*> TABLE_DTYPE1;
+vector<const char*> TABLE_DTYPE2;
+vector<const char*> TABLE_DTYPE3;
+vector<const char*> TABLE_DTYPE4;
+vector<const char*> TABLE_DTYPE5;
+vector<const char*> TABLE_DTYPE6;
+vector<const char*> TABLE_DTYPE7;
+vector<const char*> TABLE_DTYPE8;
+vector<const char*> TABLE_DTYPE9;
+vector<const char*> TABLE_DTYPE10;
+vector<const char*> TABLE_DTYPE11;
+vector<const char*> TABLE_DTYPE12;
+
+
+vector<const char*> TABLE_ATTR1;
+vector<const char*> TABLE_ATTR2;
+vector<const char*> TABLE_ATTR3;
+vector<const char*> TABLE_ATTR4;
+vector<const char*> TABLE_ATTR5;
+vector<const char*> TABLE_ATTR6;
+vector<const char*> TABLE_ATTR7;
+vector<const char*> TABLE_ATTR8;
+vector<const char*> TABLE_ATTR9;
+vector<const char*> TABLE_ATTR10;
+vector<const char*> TABLE_ATTR11;
+vector<const char*> TABLE_ATTR12;
+
+vector<vector<const char*> > TABLE_ATTR;
+
+void init_data() {
+  initializeVec(TABLES, 12,"FOOD_DES", "FD_GROUP", "LANGUAL", "LANGDESC", "NUT_DATA", "NUTR_DEF", "SRC_CD",
+      "DERIV_CD", "WEIGHT", "FOOTNOTE", "DATSRCLN", "DATA_SRC");
+  initializeVec(TABLE_FILE,12, "data/FOOD_DES.txt", "data/FD_GROUP.txt", "data/LANGUAL.txt", "data/LANGDESC.txt",
+      "data/NUT_DATA.txt", "data/NUTR_DEF.txt", "data/SRC_CD.txt", "data/DERIV_CD.txt", "data/WEIGHT.txt", "data/FOOTNOTE.txt", "data/DATSRCLN.txt",
+      "data/DATA_SRC.txt");
+  initializeVec(TABLE_DTYPE1,14, "CHAR(5) PRIMARY KEY NOT NULL",
      "CHAR(4) NOT NULL REFERENCES FD_GROUP(FdGrp_Cd)",
      "CHAR(200) NOT NULL",
      "CHAR(60) NOT NULL",
@@ -36,18 +106,16 @@ vector<vector<const char*> > TABLE_DTYPE = {
      "REAL",
      "REAL",
      "REAL",
-     "REAL"},
+     "REAL");
+ 
+  initializeVec(TABLE_DTYPE2,2,"CHAR(4) PRIMARY KEY NOT NULL",
+     "CHAR(60) NOT NULL");
 
-    {"CHAR(4) PRIMARY KEY NOT NULL",
-     "CHAR(60) NOT NULL"},
-
-    {"CHAR(5) NOT NULL REFERENCES FOOD_DES(NDB_No)",
-     "CHAR(5) NOT NULL REFERENCES LANGDESC(Factor_Code) , PRIMARY KEY (NDB_No, Factor_Code)"},
-
-    {"CHAR(5) PRIMARY KEY NOT NULL",
-     "CHAR(140) NOT NULL"},
-
-    {"CHAR(5) NOT NULL REFERENCES FOOD_DES(NDB_No)",
+  initializeVec(TABLE_DTYPE3,2,"CHAR(5) NOT NULL REFERENCES FOOD_DES(NDB_No)",
+     "CHAR(5) NOT NULL REFERENCES LANGDESC(Factor_Code) , PRIMARY KEY (NDB_No, Factor_Code)");
+  initializeVec(TABLE_DTYPE4,2,"CHAR(5) PRIMARY KEY NOT NULL",
+     "CHAR(140) NOT NULL");
+  initializeVec(TABLE_DTYPE5,18,"CHAR(5) NOT NULL REFERENCES FOOD_DES(NDB_No)",
      "CHAR(3) NOT NULL REFERENCES NUTR_DEF(Nutr_No)",
      "REAL NOT NULL",
      "REAL NOT NULL",
@@ -64,41 +132,33 @@ vector<vector<const char*> > TABLE_DTYPE = {
      "REAL",
      "CHAR(10)",
      "CHAR(10)",
-     "CHAR(1) , PRIMARY KEY (NDB_No, Nutr_No)"},
-
-     {"CHAR(3) NOT NULL REFERENCES NUT_DATA(Nutr_No)",
+     "CHAR(1) , PRIMARY KEY (NDB_No, Nutr_No)");
+  initializeVec(TABLE_DTYPE6,6,"CHAR(3) NOT NULL REFERENCES NUT_DATA(Nutr_No)",
       "CHAR(7) NOT NULL",
       "CHAR(20)",
       "CHAR(60) NOT NULL",
       "CHAR(1) NOT NULL",
-      "INT NOT NULL, PRIMARY KEY (Nutr_No)"},
-
-     {"CHAR(2) PRIMARY KEY NOT NULL",
-      "CHAR(60) NOT NULL"},
-
-     {"CHAR(4) PRIMARY KEY NOT NULL",
-      "CHAR(120) NOT NULL"},
-
-     {"CHAR(5) NOT NULL REFERENCES FOOD_DES(NDB_No)",
+      "INT NOT NULL, PRIMARY KEY (Nutr_No)");
+  initializeVec(TABLE_DTYPE7,2,"CHAR(2) PRIMARY KEY NOT NULL",
+      "CHAR(60) NOT NULL");
+  initializeVec(TABLE_DTYPE8,2,"CHAR(4) PRIMARY KEY NOT NULL",
+      "CHAR(120) NOT NULL");
+  initializeVec(TABLE_DTYPE9,7,"CHAR(5) NOT NULL REFERENCES FOOD_DES(NDB_No)",
       "CHAR(2) NOT NULL",
       "REAL NOT NULL",
       "CHAR(84) NOT NULL",
       "REAL NOT NULL",
       "INT",
-      "REAL, PRIMARY KEY (NDB_No, Seq)"}
-    ,
-
-         {"CHAR(5) NOT NULL REFERENCES FOOD_DES(NDB_No)",
+      "REAL, PRIMARY KEY (NDB_No, Seq)");
+  initializeVec(TABLE_DTYPE10,5,"CHAR(5) NOT NULL REFERENCES FOOD_DES(NDB_No)",
           "CHAR(4) NOT NULL",
           "CHAR(1) NOT NULL",
           "CHAR(3)",
-          "CHAR(200) NOT NULL"},
-
-     {"CHAR(5) NOT NULL REFERENCES NUT_DATA(NDB_No)",
+          "CHAR(200) NOT NULL");
+  initializeVec(TABLE_DTYPE11,3,"CHAR(5) NOT NULL REFERENCES NUT_DATA(NDB_No)",
       "CHAR(3) NOT NULL REFERENCES NUTR_DEF(Nutr_No)",
-      "CHAR(6) NOT NULL REFERENCES DATA_SRC(DataSrc_ID), PRIMARY KEY (NDB_No, Nutr_No, DataSrc_ID)"},
-
-     {"CHAR(6) PRIMARY KEY NOT NULL",
+      "CHAR(6) NOT NULL REFERENCES DATA_SRC(DataSrc_ID), PRIMARY KEY (NDB_No, Nutr_No, DataSrc_ID)");
+  initializeVec(TABLE_DTYPE12,9,"CHAR(6) PRIMARY KEY NOT NULL",
       "CHAR(255)",
       "CHAR(255) NOT NULL",
       "CHAR(4)",
@@ -106,11 +166,22 @@ vector<vector<const char*> > TABLE_DTYPE = {
       "CHAR(16)",
       "CHAR(5)",
       "CHAR(5)",
-      "CHAR(5)",}
-};
+      "CHAR(5)");
 
-vector<vector<const char*> > TABLE_ATTR = {
-{"NDB_No" ,
+  TABLE_DTYPE.push_back(TABLE_DTYPE1);
+  TABLE_DTYPE.push_back(TABLE_DTYPE2);
+  TABLE_DTYPE.push_back(TABLE_DTYPE3);
+  TABLE_DTYPE.push_back(TABLE_DTYPE4);
+  TABLE_DTYPE.push_back(TABLE_DTYPE5);
+  TABLE_DTYPE.push_back(TABLE_DTYPE6);
+  TABLE_DTYPE.push_back(TABLE_DTYPE7);
+  TABLE_DTYPE.push_back(TABLE_DTYPE8);
+  TABLE_DTYPE.push_back(TABLE_DTYPE9);
+  TABLE_DTYPE.push_back(TABLE_DTYPE10);
+  TABLE_DTYPE.push_back(TABLE_DTYPE11);
+  TABLE_DTYPE.push_back(TABLE_DTYPE12);
+
+  initializeVec(TABLE_ATTR1,14,"NDB_No" ,
  "FdGrp_Cd" ,
  "Long_Desc" ,
  "Shrt_Desc" ,
@@ -123,18 +194,16 @@ vector<vector<const char*> > TABLE_ATTR = {
  "N_Factor" ,
  "Pro_Factor" ,
  "Fat_Factor" ,
- "CHO_Factor"},
+ "CHO_Factor");
+ 
+  initializeVec(TABLE_ATTR2,2,"FdGrp_Cd",
+ "FdGrp_Desc");
 
-{"FdGrp_Cd",
- "FdGrp_Desc"},
-
-{"NDB_No",
- "Factor_Code"},
-
-{"Factor_Code",
- "Description"},
-
-{"NDB_No",
+  initializeVec(TABLE_ATTR3,2,"NDB_No",
+ "Factor_Code");
+  initializeVec(TABLE_ATTR4,2,"Factor_Code",
+ "Description");
+  initializeVec(TABLE_ATTR5,18,"NDB_No",
  "Nutr_No",
  "Nutr_Val",
  "Num_Data_Pts",
@@ -151,40 +220,33 @@ vector<vector<const char*> > TABLE_ATTR = {
  "Up_EB",
  "Stat_cmt",
  "AddMod_Date",
- "CC"},
-
- {"Nutr_No",
+ "CC");
+  initializeVec(TABLE_ATTR6,6,"Nutr_No",
   "Units",
   "Tagname",
   "NutrDesc",
   "Num_Dec",
-  "SR_Order"},
-
-  {"Src_Cd",
-   "SrcCd_Desc"},
-
-  {"Deriv_Cd",
-   "Deriv_Desc"},
-
-   {"NDB_No",
+  "SR_Order");
+  initializeVec(TABLE_ATTR7,2,"Src_Cd",
+   "SrcCd_Desc");
+  initializeVec(TABLE_ATTR8,2,"Deriv_Cd",
+   "Deriv_Desc");
+  initializeVec(TABLE_ATTR9,7,"NDB_No",
     "Seq",
     "Amount",
     "Msre_Desc",
     "Gm_Wgt",
     "Num_Data_Pts",
-    "Std_Dev"},
-
-    {"NDB_No",
+    "Std_Dev");
+  initializeVec(TABLE_ATTR10,5,"NDB_No",
      "Footnt_No",
      "Footnt_Typ",
      "Nutr_No",
-     "Footnt_Txt"},
-
-     {"NDB_No",
+     "Footnt_Txt");
+  initializeVec(TABLE_ATTR11,3,"NDB_No",
       "Nutr_No",
-      "DataSrc_ID"},
-
-     {"DataSrc_ID",
+      "DataSrc_ID");
+  initializeVec(TABLE_ATTR12,9,"DataSrc_ID",
       "Authors",
       "Title",
       "Year",
@@ -192,8 +254,20 @@ vector<vector<const char*> > TABLE_ATTR = {
       "Vol_City",
       "Issue_State",
       "Start_Page",
-      "End_Page"}
-};
+      "End_Page");
+  TABLE_ATTR.push_back(TABLE_ATTR1);
+  TABLE_ATTR.push_back(TABLE_ATTR2);
+  TABLE_ATTR.push_back(TABLE_ATTR3);
+  TABLE_ATTR.push_back(TABLE_ATTR4);
+  TABLE_ATTR.push_back(TABLE_ATTR5);
+  TABLE_ATTR.push_back(TABLE_ATTR6);
+  TABLE_ATTR.push_back(TABLE_ATTR7);
+  TABLE_ATTR.push_back(TABLE_ATTR8);
+  TABLE_ATTR.push_back(TABLE_ATTR9);
+  TABLE_ATTR.push_back(TABLE_ATTR10);
+  TABLE_ATTR.push_back(TABLE_ATTR11);
+  TABLE_ATTR.push_back(TABLE_ATTR12);
+}
 
 void createTable (sqlite3* db ,int idx) {
   string dropTable = "DROP TABLE IF EXISTS " + string(TABLES[idx])  + ";";

@@ -1,0 +1,12 @@
+SELECT F.Shrt_Desc, N1.Nutr_Val, N2.Nutr_Val
+FROM FOOD_DES F, NUT_DATA N1, NUT_DATA N2,
+                 (SELECT N.Nutr_No 
+                  FROM NUTR_DEF N 
+                  WHERE N.NutrDesc LIKE "Alcohol, ethyl") AE,
+                 (SELECT N.Nutr_No
+                  FROM NUTR_DEF N
+                  WHERE N.NutrDesc LIKE "Caffeine") CA
+WHERE (N1.Nutr_No == CA.Nutr_No AND
+      N2.Nutr_No == AE.Nutr_No) AND
+      N1.NDB_No == F.NDB_No AND
+      N2.NDB_No == F.NDB_No;

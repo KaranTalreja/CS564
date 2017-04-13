@@ -1,0 +1,9 @@
+SELECT F.Long_Desc, Q.C
+FROM FOOD_DES F, (SELECT NDB_No, COUNT(*) as C
+                  FROM NUT_DATA N
+                  GROUP BY NDB_No) Q
+WHERE F.NDB_No == Q.NDB_No
+      AND Q.C >= (SELECT MAX(G.C)
+                  FROM (SELECT COUNT(*) AS C
+                        FROM NUT_DATA N
+                        GROUP BY NDB_No) G);

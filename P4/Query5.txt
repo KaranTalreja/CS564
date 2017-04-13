@@ -1,0 +1,11 @@
+SELECT F.Long_Desc
+FROM FOOD_DES F, (SELECT N.NDB_No, AVG(N.Nutr_Val) as AVG_FD
+                  FROM NUT_DATA N
+                  GROUP BY N.NDB_No) R
+WHERE R.AVG_FD > (SELECT AVG(N1.Nutr_Val)
+                  FROM NUT_DATA N1, FOOD_DES F1
+                  WHERE N1.NDB_No == F1.NDB_No AND
+                  F1.Long_Desc LIKE "McDONALD'S, Hamburger")
+      AND F.NDB_No == R.NDB_No
+ORDER BY F.Long_Desc
+;

@@ -90,9 +90,9 @@ vector<vector<const char*> > TABLE_ATTR;
 void init_data() {
   initializeVec(TABLES, 12,"FOOD_DES", "FD_GROUP", "LANGUAL", "LANGDESC", "NUT_DATA", "NUTR_DEF", "SRC_CD",
       "DERIV_CD", "WEIGHT", "FOOTNOTE", "DATSRCLN", "DATA_SRC");
-  initializeVec(TABLE_FILE,12, "data/FOOD_DES.txt", "data/FD_GROUP.txt", "data/LANGUAL.txt", "data/LANGDESC.txt",
-      "data/NUT_DATA.txt", "data/NUTR_DEF.txt", "data/SRC_CD.txt", "data/DERIV_CD.txt", "data/WEIGHT.txt", "data/FOOTNOTE.txt", "data/DATSRCLN.txt",
-      "data/DATA_SRC.txt");
+  initializeVec(TABLE_FILE,12, "FOOD_DES.txt", "FD_GROUP.txt", "LANGUAL.txt", "LANGDESC.txt",
+      "NUT_DATA.txt", "NUTR_DEF.txt", "SRC_CD.txt", "DERIV_CD.txt", "WEIGHT.txt", "FOOTNOTE.txt", "DATSRCLN.txt",
+      "DATA_SRC.txt");
   initializeVec(TABLE_DTYPE1,14, "CHAR(5) PRIMARY KEY NOT NULL",
      "CHAR(4) NOT NULL REFERENCES FD_GROUP(FdGrp_Cd)",
      "CHAR(200) NOT NULL",
@@ -117,7 +117,7 @@ void init_data() {
      "CHAR(140) NOT NULL");
   initializeVec(TABLE_DTYPE5,18,"CHAR(5) NOT NULL REFERENCES FOOD_DES(NDB_No)",
      "CHAR(3) NOT NULL REFERENCES NUTR_DEF(Nutr_No)",
-     "REAL NOT NULL",
+     "NUMERIC(10,3) NOT NULL",
      "REAL NOT NULL",
      "REAL",
      "CHAR(2) NOT NULL REFERENCES SRC_CD(Src_Cd)",

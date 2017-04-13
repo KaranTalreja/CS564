@@ -1,0 +1,5 @@
+SELECT N.Nutr_Val
+FROM FOOD_DES F, NUT_DATA N
+WHERE F.Long_Desc LIKE "McDONALD'S, Hamburger" AND
+      F.NDB_No == N.NDB_No AND
+      N.Nutr_No == 205;

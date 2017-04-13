@@ -1,0 +1,6 @@
+SELECT Long_Desc
+FROM FOOD_DES F, (SELECT NDB_No as B,Max(A)
+                  FROM (SELECT SUM(Nutr_Val) as A, NDB_No
+                        FROM NUT_DATA
+                        GROUP BY NDB_No))
+WHERE B == F.NDB_No;

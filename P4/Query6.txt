@@ -1,0 +1,14 @@
+SELECT F.FdGrp_Cd, F.Shrt_Desc
+FROM FOOD_DES F, NUT_DATA N
+WHERE N.NDB_No == F.NDB_No AND
+      N.Nutr_No == (SELECT N.Nutr_No
+                    FROM NUTR_DEF N
+                    WHERE N.NutrDesc LIKE "Water")
+EXCEPT
+SELECT F.FdGrp_Cd, F.Shrt_Desc
+FROM FOOD_DES F, NUT_DATA N
+WHERE N.NDB_No == F.NDB_No AND
+      N.Nutr_No == (SELECT N.Nutr_No
+                    FROM NUTR_DEF N
+                    WHERE N.NutrDesc LIKE "Calcium, Ca")
+ORDER BY F.FdGrp_Cd DESC, F.Shrt_Desc ASC;

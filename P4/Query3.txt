@@ -1,0 +1,4 @@
+SELECT NU.Nutr_No, N.NutrDesc, COUNT(*)
+FROM NUT_DATA NU, NUTR_DEF N
+WHERE NU.Nutr_No == N.Nutr_No
+GROUP BY N.Nutr_No;

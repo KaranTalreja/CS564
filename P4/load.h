@@ -72,12 +72,12 @@ vector<vector<const char*> > TABLE_ATTR;
 
 /* Function to initialize data in vectors to be used by create and load table routines*/
 void init_data() {
-  initializeVec(TABLES, 12,"FOOD_DES", "FD_GROUP", "LANGUAL", "LANGDESC", "NUT_DATA", "NUTR_DEF", "SRC_CD",
-      "DERIV_CD", "WEIGHT", "FOOTNOTE", "DATSRCLN", "DATA_SRC");
-  initializeVec(TABLE_FILE,12, "FOOD_DES.txt", "FD_GROUP.txt", "LANGUAL.txt", "LANGDESC.txt",
-      "NUT_DATA.txt", "NUTR_DEF.txt", "SRC_CD.txt", "DERIV_CD.txt", "WEIGHT.txt", "FOOTNOTE.txt", "DATSRCLN.txt",
-      "DATA_SRC.txt");
-  initializeVec(TABLE_DTYPE1,14, "CHAR(5) PRIMARY KEY NOT NULL",
+  initializeVec(TABLES, 12,"FD_GROUP", "FOOD_DES", "LANGDESC", "LANGUAL","DERIV_CD",  "SRC_CD","NUTR_DEF","NUT_DATA", 
+       "WEIGHT", "FOOTNOTE", "DATA_SRC","DATSRCLN");
+  initializeVec(TABLE_FILE,12, "FD_GROUP.txt", "FOOD_DES.txt", "LANGDESC.txt", "LANGUAL.txt",
+      "DERIV_CD.txt", "SRC_CD.txt","NUTR_DEF.txt","NUT_DATA.txt",   "WEIGHT.txt", "FOOTNOTE.txt",
+      "DATA_SRC.txt","DATSRCLN.txt");
+  initializeVec(TABLE_DTYPE2,14, "CHAR(5) PRIMARY KEY NOT NULL",
      "CHAR(4) NOT NULL REFERENCES FD_GROUP(FdGrp_Cd)",
      "CHAR(200) NOT NULL",
      "CHAR(60) NOT NULL",
@@ -92,21 +92,21 @@ void init_data() {
      "REAL",
      "REAL");
  
-  initializeVec(TABLE_DTYPE2,2,"CHAR(4) PRIMARY KEY NOT NULL",
+  initializeVec(TABLE_DTYPE1,2,"CHAR(4) PRIMARY KEY NOT NULL",
      "CHAR(60) NOT NULL");
 
-  initializeVec(TABLE_DTYPE3,2,"CHAR(5) NOT NULL REFERENCES FOOD_DES(NDB_No)",
+  initializeVec(TABLE_DTYPE4,2,"CHAR(5) NOT NULL REFERENCES FOOD_DES(NDB_No)",
      "CHAR(5) NOT NULL REFERENCES LANGDESC(Factor_Code) , PRIMARY KEY (NDB_No, Factor_Code)");
-  initializeVec(TABLE_DTYPE4,2,"CHAR(5) PRIMARY KEY NOT NULL",
+  initializeVec(TABLE_DTYPE3,2,"CHAR(5) PRIMARY KEY NOT NULL",
      "CHAR(140) NOT NULL");
   initializeVec(TABLE_DTYPE5,18,"CHAR(5) NOT NULL REFERENCES FOOD_DES(NDB_No)",
      "CHAR(3) NOT NULL REFERENCES NUTR_DEF(Nutr_No)",
      "NUMERIC(10,3) NOT NULL",
      "REAL NOT NULL",
      "REAL",
-     "CHAR(2) NOT NULL REFERENCES SRC_CD(Src_Cd)",
-     "CHAR(4) REFERENCES DERIV_CD(Deriv_Cd)",
-     "CHAR(5) REFERENCES FOOD_DES(NDB_No)",
+     "CHAR(2) NOT NULL",
+     "CHAR(4)",
+     "CHAR(5) ", 
      "CHAR(12)",
      "REAL",
      "REAL",
@@ -117,7 +117,7 @@ void init_data() {
      "CHAR(10)",
      "CHAR(10)",
      "CHAR(1) , PRIMARY KEY (NDB_No, Nutr_No)");
-  initializeVec(TABLE_DTYPE6,6,"CHAR(3) NOT NULL REFERENCES NUT_DATA(Nutr_No)",
+  initializeVec(TABLE_DTYPE6,6,"CHAR(3) NOT NULL",
       "CHAR(7) NOT NULL",
       "CHAR(20)",
       "CHAR(60) NOT NULL",
@@ -139,7 +139,7 @@ void init_data() {
           "CHAR(1) NOT NULL",
           "CHAR(3)",
           "CHAR(200) NOT NULL");
-  initializeVec(TABLE_DTYPE11,3,"CHAR(5) NOT NULL REFERENCES NUT_DATA(NDB_No)",
+  initializeVec(TABLE_DTYPE11,3,"CHAR(5) NOT NULL REFERENCES FOOD_DES(NDB_No)",
       "CHAR(3) NOT NULL REFERENCES NUTR_DEF(Nutr_No)",
       "CHAR(6) NOT NULL REFERENCES DATA_SRC(DataSrc_ID), PRIMARY KEY (NDB_No, Nutr_No, DataSrc_ID)");
   initializeVec(TABLE_DTYPE12,9,"CHAR(6) PRIMARY KEY NOT NULL",
@@ -156,16 +156,16 @@ void init_data() {
   TABLE_DTYPE.push_back(TABLE_DTYPE2);
   TABLE_DTYPE.push_back(TABLE_DTYPE3);
   TABLE_DTYPE.push_back(TABLE_DTYPE4);
-  TABLE_DTYPE.push_back(TABLE_DTYPE5);
-  TABLE_DTYPE.push_back(TABLE_DTYPE6);
-  TABLE_DTYPE.push_back(TABLE_DTYPE7);
   TABLE_DTYPE.push_back(TABLE_DTYPE8);
+  TABLE_DTYPE.push_back(TABLE_DTYPE7);
+  TABLE_DTYPE.push_back(TABLE_DTYPE6);
+  TABLE_DTYPE.push_back(TABLE_DTYPE5);
   TABLE_DTYPE.push_back(TABLE_DTYPE9);
   TABLE_DTYPE.push_back(TABLE_DTYPE10);
-  TABLE_DTYPE.push_back(TABLE_DTYPE11);
   TABLE_DTYPE.push_back(TABLE_DTYPE12);
+  TABLE_DTYPE.push_back(TABLE_DTYPE11);
 
-  initializeVec(TABLE_ATTR1,14,"NDB_No" ,
+  initializeVec(TABLE_ATTR2,14,"NDB_No" ,
  "FdGrp_Cd" ,
  "Long_Desc" ,
  "Shrt_Desc" ,
@@ -180,12 +180,12 @@ void init_data() {
  "Fat_Factor" ,
  "CHO_Factor");
  
-  initializeVec(TABLE_ATTR2,2,"FdGrp_Cd",
+  initializeVec(TABLE_ATTR1,2,"FdGrp_Cd",
  "FdGrp_Desc");
 
-  initializeVec(TABLE_ATTR3,2,"NDB_No",
+  initializeVec(TABLE_ATTR4,2,"NDB_No",
  "Factor_Code");
-  initializeVec(TABLE_ATTR4,2,"Factor_Code",
+  initializeVec(TABLE_ATTR3,2,"Factor_Code",
  "Description");
   initializeVec(TABLE_ATTR5,18,"NDB_No",
  "Nutr_No",
@@ -243,14 +243,14 @@ void init_data() {
   TABLE_ATTR.push_back(TABLE_ATTR2);
   TABLE_ATTR.push_back(TABLE_ATTR3);
   TABLE_ATTR.push_back(TABLE_ATTR4);
-  TABLE_ATTR.push_back(TABLE_ATTR5);
-  TABLE_ATTR.push_back(TABLE_ATTR6);
-  TABLE_ATTR.push_back(TABLE_ATTR7);
   TABLE_ATTR.push_back(TABLE_ATTR8);
+  TABLE_ATTR.push_back(TABLE_ATTR7);
+  TABLE_ATTR.push_back(TABLE_ATTR6);
+  TABLE_ATTR.push_back(TABLE_ATTR5);
   TABLE_ATTR.push_back(TABLE_ATTR9);
   TABLE_ATTR.push_back(TABLE_ATTR10);
-  TABLE_ATTR.push_back(TABLE_ATTR11);
   TABLE_ATTR.push_back(TABLE_ATTR12);
+  TABLE_ATTR.push_back(TABLE_ATTR11);
 }
 
 /*
@@ -300,7 +300,12 @@ void replaceAll(std::string& str, const std::string& from, const std::string& to
 void loadTables(sqlite3* db) {
   
   int numberOfTables = TABLES.size();
-  for (int t = 0; t < numberOfTables; t++) {
+char* err;
+  int rc2 = sqlite3_exec(db, "PRAGMA foreign_keys=ON;", NULL, NULL, &err);
+      if (rc2 != 0) {
+        cout << err << endl;
+      }  
+for (int t = 0; t < numberOfTables; t++) {
     createTable(db, t);
     FILE* currLoadFile = fopen(TABLE_FILE[t], "r");
     char line[2048], *context, *token, *currCommand;
@@ -339,7 +344,6 @@ void loadTables(sqlite3* db) {
     sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
     fclose(currLoadFile);
   }
-
 }
 
 #endif

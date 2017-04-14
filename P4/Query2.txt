@@ -1,6 +1,13 @@
+/* Table G contains sum of Nutr_Val for all food items
+   Where clause chooses the one with the Maximum Value.
+   Select clause just outputs the Long_Desc
+*/
 SELECT Long_Desc
-FROM FOOD_DES F, (SELECT NDB_No as B,Max(A)
-                  FROM (SELECT SUM(Nutr_Val) as A, NDB_No
-                        FROM NUT_DATA
-                        GROUP BY NDB_No))
-WHERE B == F.NDB_No;
+FROM FOOD_DES F, (SELECT SUM(Nutr_Val) as S, NDB_No
+                  FROM NUT_DATA
+                  GROUP BY NDB_No) G
+WHERE G.S >= (SELECT MAX(S)
+              FROM (SELECT SUM(Nutr_Val) as S
+                    FROM NUT_DATA
+                    GROUP BY NDB_No))
+  AND G.NDB_No == F.NDB_No;

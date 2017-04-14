@@ -1,3 +1,7 @@
+/* Table R contains the Average nutritional value of all food items.
+   The where clause selects the food items with average nutritional value
+   greater than that of a hamburger and orders it alphabetically
+*/
 SELECT F.Long_Desc
 FROM FOOD_DES F, (SELECT N.NDB_No, AVG(N.Nutr_Val) as AVG_FD
                   FROM NUT_DATA N

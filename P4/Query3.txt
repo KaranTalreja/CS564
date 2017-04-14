@@ -1,4 +1,7 @@
+/*The Query groups by on two attributes and outputs the count of
+ food items that contain that nutrient with nutrients description
+*/
 SELECT NU.Nutr_No, N.NutrDesc, COUNT(*)
 FROM NUT_DATA NU, NUTR_DEF N
 WHERE NU.Nutr_No == N.Nutr_No
-GROUP BY N.Nutr_No;
+GROUP BY N.Nutr_No, N.NutrDesc;

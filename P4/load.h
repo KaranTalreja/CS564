@@ -13,27 +13,10 @@
 
 using namespace std;
 
-#define DEBUG
-#define SHOW_COMMAND
+//#define DEBUG
+//#define SHOW_COMMAND
 
-void initialize2dVec (vector<vector<const char*> > &in, int total, int num, const char* n_char, ...)
-{
-  va_list valist;
-
-  /* initialize valist for num number of arguments */
-  va_start(valist, n_char);
-
-  for (int i = 0; i < total; i++) {
-    in.push_back(vector<const char*>());
-    for (int j = 0; j< num; j++) {
-      in[i].push_back(va_arg(valist, const char*));
-    }
-  }
-
-  /* clean memory reserved for valist */
-  va_end(valist);
-}
-
+/*Function to initialize a vector of strings*/
 void initializeVec (vector<const char*>& in, int num, const char* n_char, ...)
 {
     va_list valist;
@@ -87,6 +70,7 @@ vector<const char*> TABLE_ATTR12;
 
 vector<vector<const char*> > TABLE_ATTR;
 
+/* Function to initialize data in vectors to be used by create and load table routines*/
 void init_data() {
   initializeVec(TABLES, 12,"FOOD_DES", "FD_GROUP", "LANGUAL", "LANGDESC", "NUT_DATA", "NUTR_DEF", "SRC_CD",
       "DERIV_CD", "WEIGHT", "FOOTNOTE", "DATSRCLN", "DATA_SRC");
@@ -269,6 +253,9 @@ void init_data() {
   TABLE_ATTR.push_back(TABLE_ATTR12);
 }
 
+/*
+  Function to create tables using data initialized above
+*/
 void createTable (sqlite3* db ,int idx) {
   string dropTable = "DROP TABLE IF EXISTS " + string(TABLES[idx])  + ";";
   char* errMsg;
@@ -309,6 +296,7 @@ void replaceAll(std::string& str, const std::string& from, const std::string& to
     }
 }
 
+/* Function to load all the tables using data initialized above*/
 void loadTables(sqlite3* db) {
   
   int numberOfTables = TABLES.size();

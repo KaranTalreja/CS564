@@ -1,3 +1,11 @@
+/*
+The query outputs the short description of food items which contain both Alchohol and caffiene.
+Two instances of NUT_DATA table are taken, one to match with Alchohol and other to match with
+caffeine.
+
+The output contains short description followed by Nutr_Val of Caffeine followed by Alchohol
+*/
+
 SELECT F.Shrt_Desc, N1.Nutr_Val, N2.Nutr_Val
 FROM FOOD_DES F, NUT_DATA N1, NUT_DATA N2,
                  (SELECT N.Nutr_No 

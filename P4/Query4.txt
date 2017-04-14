@@ -1,3 +1,8 @@
+/*
+  Table G contains the count of nutrients in each food item.
+  Where clause selects the food item with the max number of nutrients
+  and also outputs the number of nutrients
+*/
 SELECT F.Long_Desc, Q.C
 FROM FOOD_DES F, (SELECT NDB_No, COUNT(*) as C
                   FROM NUT_DATA N
